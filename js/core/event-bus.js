@@ -40,6 +40,7 @@ export const EVENTS = {
   GROUPS_CHANGED:    'groups:changed',
   STUDENTS_CHANGED:  'students:changed',
   UNITS_CHANGED:     'units:changed',
+  TASKS_CHANGED:     'tasks:changed',
   EVALS_CHANGED:     'evaluations:changed',
   MONITORING_CHANGED:'monitoring:changed',
   SELFEVAL_CHANGED:  'selfeval:changed',

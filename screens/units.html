@@ -79,6 +79,7 @@
         window.App.toast({ type: 'error', title: 'Error al cargar unidades', message: 'Revisa la consola para mas detalles.' });
       }
       window.App.bus.on(window.App.EVENTS.UNITS_CHANGED, render);
+      window.App.bus.on(window.App.EVENTS.TASKS_CHANGED, render);
       document.querySelectorAll('.filter-chip').forEach(b => {
         b.addEventListener('click', () => {
           currentFilter = b.dataset.filter;
@@ -133,9 +134,11 @@
                   <span><i class="fa-solid fa-tag"></i> ${escapeHtml(u.scope || '—')}</span>
                   <span><span class="badge ${status ? 'badge-archived' : 'badge-active'}">${status ? 'Archivada' : 'Activa'}</span></span>
                   <span><i class="fa-solid fa-clipboard-check"></i> ${evs} evaluación(es)</span>
+                  <span><i class="fa-solid fa-list-check"></i> ${window.App.tasks.byUnit(u.id).length} tareas</span>
                 </div>
               </div>
               <div class="actions" style="flex-shrink:0;display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn-action" data-action="tasks" title="Gestionar Tareas"><i class="fa-solid fa-list-check"></i> Tareas</button>
                 <button class="btn-action" data-action="edit" title="Editar esta unidad"><i class="fa-solid fa-pen"></i> Editar</button>
                 <button class="btn-action" data-action="clone" title="Duplicar para crear una nueva"><i class="fa-solid fa-copy"></i> Duplicar</button>
                 ${status
@@ -168,6 +171,7 @@
           const id = btn.closest('.unit-card').getAttribute('data-unit-id');
           const action = btn.dataset.action;
           if (action === 'edit') openUnitModal(id);
+          if (action === 'tasks') openTasksModal(id);
           if (action === 'clone') {
             const r = window.App.units.clone(id);
             if (r && r.ok) {
@@ -289,6 +293,82 @@
         title: isEdit ? 'Editar unidad didáctica' : 'Nueva unidad didáctica',
         icon: isEdit ? '<i class="fa-solid fa-pen-to-square"></i>' : '<i class="fa-solid fa-folder-plus"></i>',
         body, footer, size: 'lg'
+      });
+    }
+
+    function openTasksModal(unitId) {
+      const u = window.App.units.get(unitId);
+      if (!u) return;
+
+      const body = document.createElement('div');
+      
+      const renderTasks = () => {
+        const tasks = window.App.tasks.byUnit(unitId);
+        body.innerHTML = `
+          <div style="margin-bottom: 20px;">
+            <h4>Añadir nueva tarea</h4>
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <input type="text" id="newTaskTitle" placeholder="Título de la tarea..." style="flex:1" />
+              <input type="text" id="newTaskImageUrl" placeholder="URL de la imagen (opcional)..." style="flex:1" />
+              <button class="btn btn-primary" id="btnAddTask"><i class="fa-solid fa-plus"></i></button>
+            </div>
+          </div>
+          <div style="border-top: 1px solid var(--border); padding-top: 16px;">
+            <h4>Tareas de esta unidad (${tasks.length})</h4>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+              ${tasks.length === 0 ? '<p style="color:var(--muted); font-size:13px;">No hay tareas en esta unidad.</p>' : tasks.map(t => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border:1px solid var(--border); border-radius:8px; background:var(--surface);">
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    ${t.imageUrl ? `<img src="${escapeHtml(t.imageUrl)}" style="width:40px; height:40px; object-fit:cover; border-radius:4px;" />` : `<div style="width:40px; height:40px; background:var(--bg); border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px;"><i class="fa-regular fa-image"></i></div>`}
+                    <div>
+                      <div style="font-weight:500;">${escapeHtml(t.title)}</div>
+                    </div>
+                  </div>
+                  <button class="btn-action danger" onclick="window.deleteTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+
+        body.querySelector('#btnAddTask').addEventListener('click', () => {
+          const title = body.querySelector('#newTaskTitle').value;
+          const imageUrl = body.querySelector('#newTaskImageUrl').value;
+          if (!title) return window.App.toast({ type: 'error', title: 'Error', message: 'El título es requerido' });
+          const res = window.App.tasks.create({ title, imageUrl, unitId });
+          if (res.ok) {
+            window.App.toast({ type: 'success', title: 'Tarea creada' });
+            renderTasks();
+          } else {
+            window.App.toast({ type: 'error', title: 'Error', message: res.error });
+          }
+        });
+      };
+
+      // Expose delete to global temporarily for inline onclick
+      window.deleteTask = (taskId) => {
+        window.App.tasks.remove(taskId);
+        window.App.toast({ type: 'info', title: 'Tarea eliminada' });
+        renderTasks();
+      };
+
+      renderTasks();
+
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button'; closeBtn.className = 'btn';
+      closeBtn.innerHTML = 'Cerrar';
+      footer.appendChild(closeBtn);
+      closeBtn.addEventListener('click', () => {
+        delete window.deleteTask;
+        Modal.close();
+      });
+
+      Modal.open({
+        title: 'Tareas de: ' + escapeHtml(u.name),
+        icon: '<i class="fa-solid fa-list-check"></i>',
+        body, footer, size: 'md'
       });
     }
 

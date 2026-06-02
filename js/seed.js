@@ -5,6 +5,7 @@ import { usersRepo }     from './repositories/users.repo.js';
 import { groupsRepo }    from './repositories/groups.repo.js';
 import { studentsRepo }  from './repositories/students.repo.js';
 import { unitsRepo }     from './repositories/units.repo.js';
+import { tasksRepo }     from './repositories/tasks.repo.js';
 import { evaluationsRepo } from './repositories/evaluations.repo.js';
 import { monitoringRepo }  from './repositories/monitoring.repo.js';
 import { storage }       from './core/storage.js';
@@ -72,10 +73,18 @@ function seed() {
   ];
   units.forEach(u => unitsRepo.save(u));
 
+  // 4.5 Tareas
+  const tasks = [
+    { id: 'task-1', unitId: 'uni-1', title: 'Dibujo familiar', description: 'Dibuja a tu familia', imageUrl: 'https://images.unsplash.com/photo-1594895697628-98e98342ee64?w=100' },
+    { id: 'task-2', unitId: 'uni-3', title: 'Rutina de higiene', description: 'Fotos lavándose las manos', imageUrl: 'https://images.unsplash.com/photo-1584515933487-779824d29309?w=100' },
+    { id: 'task-3', unitId: 'uni-3', title: 'Alimentación saludable', description: 'Reconocer frutas y verduras', imageUrl: 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=100' }
+  ];
+  tasks.forEach(t => tasksRepo.save({ ...t, status: 'active', createdAt: Date.now() }));
+
   // 5. Algunas evaluaciones y fichas (para que los reportes tengan datos)
-  const seedEval = (studentId, groupId, unitId, criteria, obs = '', daysAgo = 5) => {
+  const seedEval = (studentId, groupId, unitId, taskId, criteria, obs = '', daysAgo = 5) => {
     evaluationsRepo.save({
-      studentId, groupId, unitId,
+      studentId, groupId, unitId, taskId,
       date: Date.now() - daysAgo * 86400000,
       criteria, observations: obs
     });
@@ -88,12 +97,12 @@ function seed() {
     });
   };
 
-  seedEval('std-1', 'gpo-inicial-a', 'uni-3', { clasificacion:'L', seriacion:'L', construccion:'EP', pensamiento:'L', metacognicion:'EP' }, 'Buen avance en clasificación y seriación.', 5);
-  seedEval('std-2', 'gpo-inicial-a', 'uni-3', { clasificacion:'EP', seriacion:'L', construccion:'L', pensamiento:'EP', metacognicion:'I' }, 'Necesita refuerzo en metacognición.', 5);
-  seedEval('std-3', 'gpo-inicial-a', 'uni-3', { clasificacion:'L', seriacion:'L', construccion:'L', pensamiento:'L', metacognicion:'EP' }, 'Excelente desempeño general.', 5);
-  seedEval('std-4', 'gpo-inicial-a', 'uni-3', { clasificacion:'EP', seriacion:'I', construccion:'I', pensamiento:'EP', metacognicion:'I' }, 'Requiere atención integral.', 4);
-  seedEval('std-5', 'gpo-inicial-a', 'uni-3', { clasificacion:'L', seriacion:'EP', construccion:'EP', pensamiento:'L', metacognicion:'EP' }, 'Avance sostenido.', 4);
-  seedEval('std-6', 'gpo-inicial-a', 'uni-3', { clasificacion:'EP', seriacion:'I', construccion:'I', pensamiento:'I', metacognicion:'I' }, 'En proceso inicial.', 3);
+  seedEval('std-1', 'gpo-inicial-a', 'uni-3', 'task-2', { clasificacion:'L', seriacion:'L', construccion:'EP', pensamiento:'L', metacognicion:'EP' }, 'Buen avance en clasificación y seriación.', 5);
+  seedEval('std-2', 'gpo-inicial-a', 'uni-3', 'task-2', { clasificacion:'EP', seriacion:'L', construccion:'L', pensamiento:'EP', metacognicion:'I' }, 'Necesita refuerzo en metacognición.', 5);
+  seedEval('std-3', 'gpo-inicial-a', 'uni-3', 'task-2', { clasificacion:'L', seriacion:'L', construccion:'L', pensamiento:'L', metacognicion:'EP' }, 'Excelente desempeño general.', 5);
+  seedEval('std-4', 'gpo-inicial-a', 'uni-3', 'task-2', { clasificacion:'EP', seriacion:'I', construccion:'I', pensamiento:'EP', metacognicion:'I' }, 'Requiere atención integral.', 4);
+  seedEval('std-5', 'gpo-inicial-a', 'uni-3', 'task-2', { clasificacion:'L', seriacion:'EP', construccion:'EP', pensamiento:'L', metacognicion:'EP' }, 'Avance sostenido.', 4);
+  seedEval('std-6', 'gpo-inicial-a', 'uni-3', 'task-2', { clasificacion:'EP', seriacion:'I', construccion:'I', pensamiento:'I', metacognicion:'I' }, 'En proceso inicial.', 3);
 
   seedMon('std-1', 'gpo-inicial-a', 'uni-3', {
     clasificacion:   { level:'L',  observations:'Clasifica correctamente.',  support:'Juegos de atributos combinados.' },

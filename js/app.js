@@ -15,6 +15,7 @@ import { authService }      from './services/auth.service.js';
 import { groupsService }    from './services/groups.service.js';
 import { studentsService }  from './services/students.service.js';
 import { unitsService }     from './services/units.service.js';
+import { tasksService }     from './services/tasks.service.js';
 import { evaluationsService } from './services/evaluations.service.js';
 import { monitoringService }  from './services/monitoring.service.js';
 import { selfEvalService }    from './services/self-eval.service.js';
@@ -23,6 +24,7 @@ import { notesService }       from './services/notes.service.js';
 import { groupsRepo }       from './repositories/groups.repo.js';
 import { studentsRepo }     from './repositories/students.repo.js';
 import { unitsRepo }        from './repositories/units.repo.js';
+import { tasksRepo }        from './repositories/tasks.repo.js';
 import { evaluationsRepo }  from './repositories/evaluations.repo.js';
 import { monitoringRepo }   from './repositories/monitoring.repo.js';
 import { selfEvalRepo }     from './repositories/self-eval.repo.js';
@@ -53,12 +55,13 @@ ready(() => {
     groups: groupsService,
     students: studentsService,
     units: unitsService,
+    tasks: tasksService,
     evaluations: evaluationsService,
     monitoring: monitoringService,
     selfEval: selfEvalService,
     notes: notesService,
 
-    repos: { groupsRepo, studentsRepo, unitsRepo, evaluationsRepo, monitoringRepo, selfEvalRepo, notesRepo, usersRepo },
+    repos: { groupsRepo, studentsRepo, unitsRepo, tasksRepo, evaluationsRepo, monitoringRepo, selfEvalRepo, notesRepo, usersRepo },
     session,
     storage,
     bus, EVENTS,

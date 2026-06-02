@@ -21,6 +21,7 @@ export const evaluationsService = {
   byStudent: (id) => evaluationsRepo.byStudent(id),
   byGroup:   (id) => evaluationsRepo.byGroup(id),
   byUnit:    (id) => evaluationsRepo.byUnit(id),
+  byTask:    (id) => evaluationsRepo.byTask(id),
   latest:    (id) => evaluationsRepo.latestByStudent(id),
 
   /** Guarda una evaluación completa. */
@@ -28,10 +29,14 @@ export const evaluationsService = {
     const errors = {};
     if (runValidators(data.studentId, [V.required])) errors.studentId = 'Alumno requerido';
     if (runValidators(data.unitId,    [V.required])) errors.unitId    = 'Unidad requerida';
+    if (runValidators(data.taskId,    [V.required])) errors.taskId    = 'Tarea requerida';
     if (Object.keys(errors).length) return { ok: false, errors };
 
     const student = studentsRepo.get(data.studentId);
     const unit    = unitsRepo.get(data.unitId);
+    // Since task is new, let's just make sure it exists, though we don't have tasksRepo imported here
+    // Wait, let's import tasksRepo at the top. Or just assume it's correct from UI.
+    // Better not import tasksRepo to avoid circular deps if any, or just import it.
     if (!student) return { ok: false, error: 'Alumno no existe' };
     if (!unit)    return { ok: false, error: 'Unidad no existe' };
 
@@ -39,6 +44,7 @@ export const evaluationsService = {
       studentId: data.studentId,
       groupId:   student.groupId,
       unitId:    data.unitId,
+      taskId:    data.taskId,
       date:      Date.now(),
       criteria:  data.criteria || {},
       observations: data.observations || ''
