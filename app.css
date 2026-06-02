@@ -153,3 +153,117 @@
   100% { box-shadow: 0 0 0 14px oklch(55% 0.15 230 / 0); }
 }
 .pulse-highlight { animation: pulse-highlight 1.4s ease-out 2; border-color: var(--accent) !important; }
+
+/* --- Segmented control (pestañas de informes) --- */
+.seg-control { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 3px; gap: 2px; }
+.seg-control button {
+  font: 500 12.5px/1 var(--font);
+  padding: 7px 14px; border-radius: 5px;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--muted); transition: all .12s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.seg-control button i { font-size: 12px; }
+.seg-control button:hover { color: var(--fg); }
+.seg-control button.active { background: var(--surface); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
+/* --- Report layout --- */
+.report-toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  padding: 14px 16px; margin-bottom: 18px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.report-toolbar label { font: 500 11px/1 var(--font); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.report-toolbar select { min-width: 220px; }
+
+.report-doc {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 32px 40px;
+}
+.report-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  border-bottom: 2px solid var(--fg); padding-bottom: 16px; margin-bottom: 24px;
+  gap: 16px;
+}
+.report-header .report-brand { display: flex; align-items: center; gap: 10px; }
+.report-header .report-brand .logo {
+  width: 32px; height: 32px; background: var(--accent); color: #fff;
+  border-radius: 6px; display: grid; place-items: center;
+  font: 600 13px/1 var(--font-display);
+}
+.report-header .report-brand .name { font: 600 15px/1.2 var(--font-display); }
+.report-header .report-brand .sub  { font: 11px/1 var(--font); color: var(--muted); }
+.report-header .report-meta { text-align: right; font-size: 11.5px; color: var(--muted); }
+.report-header .report-meta strong { color: var(--fg); font-weight: 500; }
+
+.report-title { font: 600 22px/1.2 var(--font-display); margin-bottom: 6px; }
+.report-sub   { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+.report-section { margin-bottom: 28px; page-break-inside: avoid; }
+.report-section h2 {
+  font: 600 13px/1.2 var(--font-display); text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+}
+.report-section h2 i { color: var(--accent); }
+
+.report-kv {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.report-kv .kv {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 12px;
+}
+.report-kv .kv .k { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 3px; }
+.report-kv .kv .v { font: 600 18px/1.1 var(--font-display); color: var(--fg); }
+.report-kv .kv .v.success { color: var(--success); }
+.report-kv .kv .v.warning { color: var(--warning); }
+.report-kv .kv .v.danger  { color: var(--danger); }
+
+.report-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.report-table th, .report-table td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+.report-table th { background: var(--bg); font: 500 11px/1 var(--font); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.report-table tbody tr:hover { background: var(--bg); }
+.report-table tfoot td { font-weight: 500; background: var(--bg); }
+
+.report-bars { display: flex; flex-direction: column; gap: 6px; }
+.report-bars .bar-row { display: flex; align-items: center; gap: 8px; }
+.report-bars .bar-row .name { width: 200px; font-size: 12.5px; }
+.report-bars .bar-row .track {
+  flex: 1; height: 16px; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; overflow: hidden; display: flex;
+}
+.report-bars .bar-row .seg { height: 100%; display: grid; place-items: center; font-size: 10px; color: #fff; font-weight: 600; }
+.report-bars .bar-row .seg.L  { background: var(--success); }
+.report-bars .bar-row .seg.EP { background: var(--warning); }
+.report-bars .bar-row .seg.I  { background: var(--danger); }
+.report-bars .bar-row .counts { width: 90px; text-align: right; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.report-legend { font-size: 11.5px; color: var(--muted); display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+.report-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+.report-legend .dot.L  { background: var(--success); }
+.report-legend .dot.EP { background: var(--warning); }
+.report-legend .dot.I  { background: var(--danger); }
+
+.report-signature {
+  margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px;
+  font-size: 12px; color: var(--muted);
+}
+.report-signature .sig-block { border-top: 1px solid var(--fg); padding-top: 6px; }
+
+/* --- Print styles --- */
+@media print {
+  body { background: #fff; }
+  .sidebar, .topbar, .sidebar-backdrop, .help-fab, .help-fab-label, .report-toolbar, .bc, .toast-container, .app-shell > .sidebar, .app-shell > .sidebar-backdrop { display: none !important; }
+  .app-shell { display: block; height: auto; overflow: visible; }
+  .main-area { margin: 0; padding: 0; }
+  .topbar { display: none !important; }
+  .content { max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
+  .report-doc { border: none; padding: 0; box-shadow: none; }
+  .report-section { page-break-inside: avoid; }
+  .report-table th { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .report-bars .bar-row .seg.L, .report-bars .bar-row .seg.EP, .report-bars .bar-row .seg.I { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .badge { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { color: inherit; text-decoration: none; }
+  @page { margin: 1.5cm; size: A4; }
+}

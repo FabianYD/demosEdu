@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Informes — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <h2><i class="fa-solid fa-file-lines" style="color:var(--accent);margin-right:8px"></i>Informes</h2>
+        <div class="topbar-actions">
+          <button class="btn" id="printBtn" title="Imprimir o guardar como PDF"><i class="fa-solid fa-print"></i> Imprimir / PDF</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="report-toolbar">
+          <div class="seg-control" id="segControl">
+            <button class="active" data-tab="student"><i class="fa-solid fa-user"></i> Por estudiante</button>
+            <button data-tab="group"><i class="fa-solid fa-people-group"></i> Por grupo</button>
+            <button data-tab="unit"><i class="fa-solid fa-book-open"></i> Por unidad</button>
+            <button data-tab="criterion"><i class="fa-solid fa-chart-column"></i> Criterios cognitivos</button>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label for="entitySel" id="entityLabel">Estudiante</label>
+            <select id="entitySel"></select>
+          </div>
+        </div>
+        <div id="reportArea" class="report-doc"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { escapeHtml, fmtDate } from '../js/core/dom.js';
+
+    const CRITERIA = [
+      { key: 'clasificacion', label: 'Clasificación' },
+      { key: 'seriacion',     label: 'Seriación' },
+      { key: 'construccion',  label: 'Construcción de conocimiento' },
+      { key: 'pensamiento',   label: 'Pensamiento lógico' },
+      { key: 'metacognicion', label: 'Metacognición' }
+    ];
+    const LEVELS = { I: 'Iniciado', EP: 'En Proceso', L: 'Logrado' };
+    const LEVEL_COLOR = { L: 'var(--success)', EP: 'var(--warning)', I: 'var(--danger)' };
+
+    const params = new URLSearchParams(window.location.search);
+    let activeTab = params.get('tab') || 'student';
+    let currentEntityId = params.get('id') || null;
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'reports');
+      document.getElementById('printBtn').addEventListener('click', () => window.print());
+      document.querySelectorAll('#segControl button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeTab = btn.dataset.tab;
+          currentEntityId = null;
+          document.querySelectorAll('#segControl button').forEach(b => b.classList.toggle('active', b === btn));
+          refreshEntitySelector();
+          renderReport();
+        });
+      });
+      refreshEntitySelector();
+      window.App.bus.on(window.App.EVENTS.STUDENTS_CHANGED, () => { refreshEntitySelector(); renderReport(); });
+      window.App.bus.on(window.App.EVENTS.GROUPS_CHANGED,   () => { refreshEntitySelector(); renderReport(); });
+      window.App.bus.on(window.App.EVENTS.UNITS_CHANGED,    () => { refreshEntitySelector(); renderReport(); });
+      window.App.bus.on(window.App.EVENTS.EVALS_CHANGED,    () => renderReport());
+      window.App.bus.on(window.App.EVENTS.MONITORING_CHANGED, () => renderReport());
+      window.App.bus.on(window.App.EVENTS.SELFEVAL_CHANGED,  () => renderReport());
+      window.App.bus.on(window.App.EVENTS.NOTES_CHANGED,     () => renderReport());
+      renderReport();
+    }
+
+    function refreshEntitySelector() {
+      const sel  = document.getElementById('entitySel');
+      const lbl  = document.getElementById('entityLabel');
+      const data = getEntityList();
+      lbl.textContent = data.label;
+      if (!data.items.length) {
+        sel.innerHTML = '<option>— sin datos —</option>';
+        sel.disabled = true;
+        return;
+      }
+      sel.disabled = false;
+      if (!currentEntityId || !data.items.find(i => i.id === currentEntityId)) {
+        currentEntityId = data.items[0].id;
+      }
+      sel.innerHTML = data.items.map(i => `<option value="${escapeHtml(i.id)}" ${i.id===currentEntityId?'selected':''}>${escapeHtml(i.name)}</option>`).join('');
+      sel.onchange = () => { currentEntityId = sel.value; renderReport(); };
+    }
+
+    function getEntityList() {
+      if (activeTab === 'student') {
+        const items = window.App.students.list().map(s => {
+          const g = window.App.groups.get(s.groupId);
+          return { id: s.id, name: s.name + (g ? ' — ' + g.name : '') };
+        });
+        return { label: 'Estudiante', items };
+      }
+      if (activeTab === 'group') {
+        const items = window.App.groups.list().map(g => ({ id: g.id, name: g.name + ' (' + g.level + ')' }));
+        return { label: 'Grupo', items };
+      }
+      if (activeTab === 'unit') {
+        const items = window.App.units.list().map(u => ({ id: u.id, name: u.name }));
+        return { label: 'Unidad', items };
+      }
+      if (activeTab === 'criterion') {
+        const items = CRITERIA.map(c => ({ id: c.key, name: c.label }));
+        return { label: 'Criterio', items };
+      }
+      return { label: '', items: [] };
+    }
+
+    /* ===================================================================
+       RENDERIZADO DE INFORMES
+       =================================================================== */
+    function renderReport() {
+      const a = document.getElementById('reportArea');
+      if (activeTab === 'student')      return renderStudentReport(a);
+      if (activeTab === 'group')        return renderGroupReport(a);
+      if (activeTab === 'unit')         return renderUnitReport(a);
+      if (activeTab === 'criterion')    return renderCriterionReport(a);
+    }
+
+    function docHeader(title, subtitle) {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('es', { year:'numeric', month:'long', day:'numeric' });
+      const timeStr = now.toLocaleTimeString('es', { hour:'2-digit', minute:'2-digit' });
+      const teacher = (window.App.session.current && window.App.session.current.name) || 'Docente';
+      return `
+        <div class="report-header">
+          <div class="report-brand">
+            <div class="logo">SD</div>
+            <div>
+              <div class="name">Sistema Docente</div>
+              <div class="sub">UTN Semilleros 2026</div>
+            </div>
+          </div>
+          <div class="report-meta">
+            <div><strong>Generado:</strong> ${escapeHtml(dateStr)} · ${escapeHtml(timeStr)}</div>
+            <div><strong>Docente:</strong> ${escapeHtml(teacher)}</div>
+          </div>
+        </div>
+        <div class="report-title">${escapeHtml(title)}</div>
+        ${subtitle ? `<div class="report-sub">${escapeHtml(subtitle)}</div>` : ''}
+      `;
+    }
+
+    function docFooter() {
+      return `
+        <div class="report-signature">
+          <div class="sig-block">Firma del docente</div>
+          <div class="sig-block">Firma del representante / coordinador</div>
+        </div>
+      `;
+    }
+
+    function levelBadge(l) {
+      if (!l) return '<span style="color:var(--muted)">—</span>';
+      const cls = l === 'L' ? 'badge-achieved' : l === 'EP' ? 'badge-progress' : 'badge-initiated';
+      return `<span class="badge ${cls}">${l}</span>`;
+    }
+
+    function pctBar(pct, color) {
+      return `
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;height:6px;background:var(--bg);border-radius:3px;overflow:hidden;border:1px solid var(--border)">
+            <div style="height:100%;width:${Math.max(0, Math.min(100, pct))}%;background:${color}"></div>
+          </div>
+          <span style="font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;width:38px;text-align:right">${Math.round(pct)}%</span>
+        </div>
+      `;
+    }
+
+    /* ============== INFORME POR ESTUDIANTE ============== */
+    function renderStudentReport(a) {
+      const s = currentEntityId ? window.App.students.get(currentEntityId) : null;
+      if (!s) { a.innerHTML = '<div class="empty-state"><span class="icon"><i class="fa-solid fa-user-slash"></i></span><h3>Selecciona un estudiante</h3></div>'; return; }
+      const g = window.App.groups.get(s.groupId);
+      const evals = window.App.evaluations.byStudent(s.id);
+      const latest = evals.sort((x, y) => y.date - x.date)[0];
+      const mons   = window.App.monitoring.byStudent(s.id);
+      const notes  = window.App.notes.byStudent(s.id);
+      const selfE  = window.App.selfEval.list().filter(e => e.studentId === s.id);
+
+      // Stats globales
+      const counts = { L:0, EP:0, I:0, total:0 };
+      evals.forEach(ev => CRITERIA.forEach(c => {
+        const lvl = (ev.criteria || {})[c.key];
+        if (lvl) { counts[lvl]++; counts.total++; }
+      }));
+      const pctL  = counts.total ? counts.L / counts.total * 100 : 0;
+      const pctEP = counts.total ? counts.EP / counts.total * 100 : 0;
+      const pctI  = counts.total ? counts.I  / counts.total * 100 : 0;
+
+      // Progreso por unidad (para cada unidad donde tenga evaluación)
+      const unitProgress = {};
+      evals.forEach(ev => {
+        const u = window.App.units.get(ev.unitId);
+        if (!u) return;
+        if (!unitProgress[u.id]) unitProgress[u.id] = { name: u.name, L:0, EP:0, I:0, total:0 };
+        CRITERIA.forEach(c => {
+          const lvl = (ev.criteria || {})[c.key];
+          if (lvl) { unitProgress[u.id][lvl]++; unitProgress[u.id].total++; }
+        });
+      });
+
+      a.innerHTML = `
+        ${docHeader('Ficha del estudiante', s.name + (g ? ' · ' + g.name : ''))}
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-id-card"></i> Datos personales</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Nombre</div><div class="v" style="font-size:14px">${escapeHtml(s.name)}</div></div>
+            <div class="kv"><div class="k">Grupo</div><div class="v" style="font-size:14px">${escapeHtml(g ? g.name : '—')}</div></div>
+            <div class="kv"><div class="k">Nivel</div><div class="v" style="font-size:14px">${escapeHtml(g ? g.level : '—')}</div></div>
+            <div class="kv"><div class="k">Representante</div><div class="v" style="font-size:14px">${escapeHtml(s.representative || '—')}</div></div>
+            <div class="kv"><div class="k">Contacto</div><div class="v" style="font-size:14px">${escapeHtml(s.phone || '—')}</div></div>
+            <div class="kv"><div class="k">ID</div><div class="v" style="font-size:12px;font-family:var(--font-mono)">${escapeHtml(s.id)}</div></div>
+          </div>
+        </div>
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-pie"></i> Resumen cognitivo</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Logrado</div><div class="v success">${counts.L} <span style="font-size:13px;color:var(--muted);font-weight:400">/ ${counts.total}</span></div></div>
+            <div class="kv"><div class="k">En proceso</div><div class="v warning">${counts.EP} <span style="font-size:13px;color:var(--muted);font-weight:400">/ ${counts.total}</span></div></div>
+            <div class="kv"><div class="k">Iniciado</div><div class="v danger">${counts.I} <span style="font-size:13px;color:var(--muted);font-weight:400">/ ${counts.total}</span></div></div>
+            <div class="kv"><div class="k">Evaluaciones</div><div class="v">${evals.length}</div></div>
+            <div class="kv"><div class="k">Fichas de monitoreo</div><div class="v">${mons.length}</div></div>
+            <div class="kv"><div class="k">Notas / observaciones</div><div class="v">${notes.length}</div></div>
+          </div>
+        </div>
+
+        ${latest ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-clipboard-check"></i> Última rúbrica · ${escapeHtml((window.App.units.get(latest.unitId) || {name:''}).name)} · ${fmtDate(latest.date)}</h2>
+          <table class="report-table">
+            <thead><tr><th>Criterio</th><th>Nivel</th><th>Descripción</th></tr></thead>
+            <tbody>
+              ${CRITERIA.map(c => {
+                const lvl = (latest.criteria || {})[c.key];
+                return `<tr>
+                  <td>${escapeHtml(c.label)}</td>
+                  <td>${levelBadge(lvl)}</td>
+                  <td style="color:var(--muted)">${lvl ? LEVELS[lvl] : 'Sin registro'}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+          ${latest.observations ? `<div style="margin-top:10px;padding:10px 12px;background:var(--bg);border-left:3px solid var(--accent);border-radius:4px;font-size:12.5px"><strong>Observaciones:</strong> ${escapeHtml(latest.observations)}</div>` : ''}
+        </div>` : ''}
+
+        ${Object.keys(unitProgress).length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-column"></i> Progreso por unidad didáctica</h2>
+          <div class="report-bars">
+            ${Object.values(unitProgress).map(u => {
+              const t = u.total || 1;
+              const pL = u.L/t*100, pEP = u.EP/t*100, pI = u.I/t*100;
+              return `
+                <div class="bar-row">
+                  <div class="name">${escapeHtml(u.name)}</div>
+                  <div class="track">
+                    <div class="seg L"  style="width:${pL}%">${u.L||''}</div>
+                    <div class="seg EP" style="width:${pEP}%">${u.EP||''}</div>
+                    <div class="seg I"  style="width:${pI}%">${u.I||''}</div>
+                  </div>
+                  <div class="counts">${u.L} · ${u.EP} · ${u.I}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="report-legend">
+            <span><span class="dot L"></span> Logrado (L)</span>
+            <span><span class="dot EP"></span> En proceso (EP)</span>
+            <span><span class="dot I"></span> Iniciado (I)</span>
+          </div>
+        </div>` : ''}
+
+        ${notes.length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-note-sticky"></i> Notas y observaciones</h2>
+          <table class="report-table">
+            <thead><tr><th style="width:90px">Fecha</th><th style="width:120px">Tipo</th><th>Nota</th></tr></thead>
+            <tbody>
+              ${notes.sort((x,y)=>y.date-x.date).slice(0, 8).map(n => `
+                <tr>
+                  <td>${fmtDate(n.date)}</td>
+                  <td>${n.type === 'support' ? '<span class="badge badge-progress">Apoyo</span>' : '<span class="badge badge-achieved">Observación</span>'}</td>
+                  <td>${escapeHtml(n.text)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+        ${mons.length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-clipboard-list"></i> Última ficha de monitoreo</h2>
+          ${(() => {
+            const last = mons.sort((x,y)=>y.date-x.date)[0];
+            return `
+              <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${escapeHtml((window.App.units.get(last.unitId)||{name:''}).name)} · ${fmtDate(last.date)}</div>
+              <table class="report-table">
+                <thead><tr><th>Área</th><th style="width:70px">Nivel</th><th>Observación</th><th>Apoyo</th></tr></thead>
+                <tbody>
+                  ${Object.entries(last.fields || {}).map(([k, v]) => `
+                    <tr>
+                      <td>${escapeHtml(k)}</td>
+                      <td>${levelBadge(v.level)}</td>
+                      <td style="font-size:12px">${escapeHtml(v.observations || '—')}</td>
+                      <td style="font-size:12px">${escapeHtml(v.support || '—')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            `;
+          })()}
+        </div>` : ''}
+
+        ${docFooter()}
+      `;
+    }
+
+    /* ============== INFORME POR GRUPO ============== */
+    function renderGroupReport(a) {
+      const g = currentEntityId ? window.App.groups.get(currentEntityId) : null;
+      if (!g) { a.innerHTML = '<div class="empty-state"><span class="icon"><i class="fa-solid fa-people-group"></i></span><h3>Selecciona un grupo</h3></div>'; return; }
+      const students = window.App.students.byGroup(g.id);
+      const evals    = window.App.evaluations.byGroup(g.id);
+      const mons     = window.App.monitoring.byGroup(g.id);
+
+      // Distribución global
+      const counts = { L:0, EP:0, I:0, total:0 };
+      const byCrit = {};
+      CRITERIA.forEach(c => byCrit[c.key] = { L:0, EP:0, I:0, total:0 });
+      evals.forEach(ev => CRITERIA.forEach(c => {
+        const lvl = (ev.criteria || {})[c.key];
+        if (lvl) { counts[lvl]++; counts.total++; byCrit[c.key][lvl]++; byCrit[c.key].total++; }
+      }));
+
+      // Por alumno (última evaluación)
+      const studentRows = students.map(s => {
+        const evs = evals.filter(e => e.studentId === s.id);
+        const last = evs.sort((x,y)=>y.date-x.date)[0];
+        const monsForS = mons.filter(m => m.studentId === s.id).length;
+        const cellFor = (k) => last ? levelBadge((last.criteria || {})[k]) : '<span style="color:var(--muted)">—</span>';
+        return {
+          name: s.name,
+          evals: evs.length,
+          mons: monsForS,
+          lastDate: last ? fmtDate(last.date) : '—',
+          cells: CRITERIA.map(c => cellFor(c.key))
+        };
+      });
+
+      // Autoevaluaciones del grupo
+      const selfE = window.App.selfEval.list().filter(e => e.groupId === g.id);
+      const selfEStats = { si:0, ep:0, no:0, total:0 };
+      selfE.forEach(e => Object.values(e.answers || {}).forEach(a => { if (selfEStats[a] !== undefined) { selfEStats[a]++; selfEStats.total++; } }));
+
+      a.innerHTML = `
+        ${docHeader('Informe del grupo', g.name + ' · ' + g.level)}
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-circle-info"></i> Datos del grupo</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Nombre</div><div class="v" style="font-size:14px">${escapeHtml(g.name)}</div></div>
+            <div class="kv"><div class="k">Nivel</div><div class="v" style="font-size:14px">${escapeHtml(g.level)}</div></div>
+            <div class="kv"><div class="k">Alumnos</div><div class="v">${students.length}</div></div>
+            <div class="kv"><div class="k">Evaluaciones</div><div class="v">${evals.length}</div></div>
+            <div class="kv"><div class="k">Fichas de monitoreo</div><div class="v">${mons.length}</div></div>
+            <div class="kv"><div class="k">Autoevaluaciones</div><div class="v">${selfE.length}</div></div>
+          </div>
+        </div>
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-pie"></i> Distribución global de criterios</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Logrado</div><div class="v success">${pct(counts.L, counts.total)}%</div></div>
+            <div class="kv"><div class="k">En proceso</div><div class="v warning">${pct(counts.EP, counts.total)}%</div></div>
+            <div class="kv"><div class="k">Iniciado</div><div class="v danger">${pct(counts.I, counts.total)}%</div></div>
+            <div class="kv"><div class="k">Criterios medidos</div><div class="v">${counts.total}</div></div>
+          </div>
+        </div>
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-column"></i> Distribución por criterio cognitivo</h2>
+          <div class="report-bars">
+            ${CRITERIA.map(c => {
+              const d = byCrit[c.key];
+              const t = d.total || 1;
+              const pL = d.L/t*100, pEP = d.EP/t*100, pI = d.I/t*100;
+              if (!d.total) {
+                return `<div class="bar-row"><div class="name">${escapeHtml(c.label)}</div><div class="track" style="display:grid;place-items:center;color:var(--muted);font-size:11px">Sin datos</div><div class="counts">—</div></div>`;
+              }
+              return `
+                <div class="bar-row">
+                  <div class="name">${escapeHtml(c.label)}</div>
+                  <div class="track">
+                    <div class="seg L"  style="width:${pL}%">${d.L||''}</div>
+                    <div class="seg EP" style="width:${pEP}%">${d.EP||''}</div>
+                    <div class="seg I"  style="width:${pI}%">${d.I||''}</div>
+                  </div>
+                  <div class="counts">${d.L} · ${d.EP} · ${d.I}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="report-legend">
+            <span><span class="dot L"></span> Logrado (L)</span>
+            <span><span class="dot EP"></span> En proceso (EP)</span>
+            <span><span class="dot I"></span> Iniciado (I)</span>
+          </div>
+        </div>
+
+        ${selfE.length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-user-pen"></i> Autoevaluación docente (${selfE.length})</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Respuestas Sí</div><div class="v success">${selfEStats.si}</div></div>
+            <div class="kv"><div class="k">En proceso</div><div class="v warning">${selfEStats.ep}</div></div>
+            <div class="kv"><div class="k">No</div><div class="v danger">${selfEStats.no}</div></div>
+          </div>
+        </div>` : ''}
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-table-list"></i> Detalle por alumno (última evaluación)</h2>
+          ${students.length ? `
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Alumno</th>
+                  <th style="width:80px">Evals</th>
+                  <th style="width:80px">Monit.</th>
+                  ${CRITERIA.map(c => `<th>${escapeHtml(c.label).substring(0,14)}</th>`).join('')}
+                  <th>Última</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${studentRows.map(r => `
+                  <tr>
+                    <td>${escapeHtml(r.name)}</td>
+                    <td>${r.evals}</td>
+                    <td>${r.mons}</td>
+                    ${r.cells.map(c => `<td>${c}</td>`).join('')}
+                    <td style="color:var(--muted);font-size:11.5px">${escapeHtml(r.lastDate)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          ` : '<p style="color:var(--muted)">Este grupo no tiene alumnos registrados.</p>'}
+        </div>
+
+        ${docFooter()}
+      `;
+    }
+
+    /* ============== INFORME POR UNIDAD ============== */
+    function renderUnitReport(a) {
+      const u = currentEntityId ? window.App.units.get(currentEntityId) : null;
+      if (!u) { a.innerHTML = '<div class="empty-state"><span class="icon"><i class="fa-solid fa-book-open"></i></span><h3>Selecciona una unidad</h3></div>'; return; }
+      const evals = window.App.evaluations.byUnit(u.id);
+      const groups = (u.groupIds || []).map(gid => window.App.groups.get(gid)).filter(Boolean);
+      const mons  = window.App.monitoring.list().filter(m => m.unitId === u.id);
+
+      // Distribución
+      const counts = { L:0, EP:0, I:0, total:0 };
+      const byCrit = {};
+      CRITERIA.forEach(c => byCrit[c.key] = { L:0, EP:0, I:0, total:0 });
+      evals.forEach(ev => CRITERIA.forEach(c => {
+        const lvl = (ev.criteria || {})[c.key];
+        if (lvl) { counts[lvl]++; counts.total++; byCrit[c.key][lvl]++; byCrit[c.key].total++; }
+      }));
+
+      // Por grupo
+      const groupStats = groups.map(g => {
+        const gEvals = evals.filter(e => e.groupId === g.id);
+        const c = { L:0, EP:0, I:0, total:0 };
+        gEvals.forEach(ev => CRITERIA.forEach(cr => {
+          const lvl = (ev.criteria || {})[cr.key];
+          if (lvl) { c[lvl]++; c.total++; }
+        }));
+        return { name: g.name, level: g.level, evals: gEvals.length, ...c };
+      });
+
+      a.innerHTML = `
+        ${docHeader('Informe de la unidad didáctica', u.name)}
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-circle-info"></i> Datos de la unidad</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Nombre</div><div class="v" style="font-size:14px">${escapeHtml(u.name)}</div></div>
+            <div class="kv"><div class="k">Ámbito</div><div class="v" style="font-size:14px">${escapeHtml(u.scope || '—')}</div></div>
+            <div class="kv"><div class="k">Duración</div><div class="v">${u.weeks} semana(s)</div></div>
+            <div class="kv"><div class="k">Grupos</div><div class="v">${groups.length}</div></div>
+            <div class="kv"><div class="k">Evaluaciones</div><div class="v">${evals.length}</div></div>
+            <div class="kv"><div class="k">Fichas monitoreo</div><div class="v">${mons.length}</div></div>
+            <div class="kv"><div class="k">Estado</div><div class="v" style="font-size:14px">${u.status === 'archived' ? 'Archivada' : 'Activa'}</div></div>
+          </div>
+          ${u.objectives ? `<div style="margin-top:12px;padding:10px 12px;background:var(--bg);border-left:3px solid var(--accent);border-radius:4px;font-size:12.5px"><strong>Objetivo:</strong> ${escapeHtml(u.objectives)}</div>` : ''}
+          ${u.technique ? `<div style="margin-top:6px;font-size:12px;color:var(--muted)"><strong>Técnica didáctica:</strong> ${escapeHtml(u.technique)}</div>` : ''}
+        </div>
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-pie"></i> Resultados globales</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Logrado</div><div class="v success">${pct(counts.L, counts.total)}%</div></div>
+            <div class="kv"><div class="k">En proceso</div><div class="v warning">${pct(counts.EP, counts.total)}%</div></div>
+            <div class="kv"><div class="k">Iniciado</div><div class="v danger">${pct(counts.I, counts.total)}%</div></div>
+          </div>
+        </div>
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-column"></i> Desempeño por criterio</h2>
+          <div class="report-bars">
+            ${CRITERIA.map(c => {
+              const d = byCrit[c.key];
+              const t = d.total || 1;
+              if (!d.total) {
+                return `<div class="bar-row"><div class="name">${escapeHtml(c.label)}</div><div class="track" style="display:grid;place-items:center;color:var(--muted);font-size:11px">Sin datos</div><div class="counts">—</div></div>`;
+              }
+              return `
+                <div class="bar-row">
+                  <div class="name">${escapeHtml(c.label)}</div>
+                  <div class="track">
+                    <div class="seg L"  style="width:${d.L/t*100}%">${d.L||''}</div>
+                    <div class="seg EP" style="width:${d.EP/t*100}%">${d.EP||''}</div>
+                    <div class="seg I"  style="width:${d.I/t*100}%">${d.I||''}</div>
+                  </div>
+                  <div class="counts">${d.L} · ${d.EP} · ${d.I}</div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+          <div class="report-legend">
+            <span><span class="dot L"></span> Logrado (L)</span>
+            <span><span class="dot EP"></span> En proceso (EP)</span>
+            <span><span class="dot I"></span> Iniciado (I)</span>
+          </div>
+        </div>
+
+        ${groupStats.length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-users-rectangle"></i> Resultados por grupo</h2>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Grupo</th>
+                <th>Nivel</th>
+                <th style="width:80px">Evals</th>
+                <th>Logrado</th>
+                <th>En proceso</th>
+                <th>Iniciado</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${groupStats.map(g => `
+                <tr>
+                  <td>${escapeHtml(g.name)}</td>
+                  <td>${escapeHtml(g.level)}</td>
+                  <td>${g.evals}</td>
+                  <td>${pct(g.L, g.total)}% (${g.L})</td>
+                  <td>${pct(g.EP, g.total)}% (${g.EP})</td>
+                  <td>${pct(g.I, g.total)}% (${g.I})</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+        ${docFooter()}
+      `;
+    }
+
+    /* ============== INFORME POR CRITERIO COGNITIVO ============== */
+    function renderCriterionReport(a) {
+      const c = CRITERIA.find(x => x.id === currentEntityId) || CRITERIA[0];
+      const allEvals = window.App.evaluations.list();
+      const byGroup = {};
+      const byUnit  = {};
+      const counts  = { L:0, EP:0, I:0, total:0 };
+
+      allEvals.forEach(ev => {
+        const lvl = (ev.criteria || {})[c.key];
+        if (!lvl) return;
+        counts[lvl]++; counts.total++;
+        if (ev.groupId) {
+          if (!byGroup[ev.groupId]) byGroup[ev.groupId] = { L:0, EP:0, I:0, total:0 };
+          byGroup[ev.groupId][lvl]++; byGroup[ev.groupId].total++;
+        }
+        if (ev.unitId) {
+          if (!byUnit[ev.unitId]) byUnit[ev.unitId] = { L:0, EP:0, I:0, total:0 };
+          byUnit[ev.unitId][lvl]++; byUnit[ev.unitId].total++;
+        }
+      });
+
+      const groupRows = Object.entries(byGroup).map(([gid, d]) => {
+        const g = window.App.groups.get(gid);
+        return { name: g ? g.name : gid, level: g ? g.level : '—', ...d };
+      }).sort((x,y)=>x.name.localeCompare(y.name));
+
+      const unitRows = Object.entries(byUnit).map(([uid, d]) => {
+        const u = window.App.units.get(uid);
+        return { name: u ? u.name : uid, scope: u ? u.scope : '—', ...d };
+      }).sort((x,y)=>x.name.localeCompare(y.name));
+
+      a.innerHTML = `
+        ${docHeader('Informe por criterio cognitivo', c.label)}
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-circle-info"></i> Criterio analizado</h2>
+          <div class="report-kv">
+            <div class="kv"><div class="k">Criterio</div><div class="v" style="font-size:14px">${escapeHtml(c.label)}</div></div>
+            <div class="kv"><div class="k">Mediciones totales</div><div class="v">${counts.total}</div></div>
+            <div class="kv"><div class="k">Logrado</div><div class="v success">${pct(counts.L, counts.total)}%</div></div>
+            <div class="kv"><div class="k">En proceso</div><div class="v warning">${pct(counts.EP, counts.total)}%</div></div>
+            <div class="kv"><div class="k">Iniciado</div><div class="v danger">${pct(counts.I, counts.total)}%</div></div>
+          </div>
+        </div>
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-chart-column"></i> Distribución general</h2>
+          ${counts.total ? `
+            <div class="report-bars">
+              <div class="bar-row">
+                <div class="name">${escapeHtml(c.label)}</div>
+                <div class="track">
+                  <div class="seg L"  style="width:${counts.L/counts.total*100}%">${counts.L||''}</div>
+                  <div class="seg EP" style="width:${counts.EP/counts.total*100}%">${counts.EP||''}</div>
+                  <div class="seg I"  style="width:${counts.I/counts.total*100}%">${counts.I||''}</div>
+                </div>
+                <div class="counts">${counts.L} · ${counts.EP} · ${counts.I}</div>
+              </div>
+            </div>
+            <div class="report-legend">
+              <span><span class="dot L"></span> Logrado (L)</span>
+              <span><span class="dot EP"></span> En proceso (EP)</span>
+              <span><span class="dot I"></span> Iniciado (I)</span>
+            </div>
+          ` : '<p style="color:var(--muted)">No hay mediciones registradas para este criterio todavía.</p>'}
+        </div>
+
+        ${groupRows.length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-people-group"></i> Desempeño por grupo</h2>
+          <table class="report-table">
+            <thead>
+              <tr><th>Grupo</th><th>Nivel</th><th>Mediciones</th><th>Logrado</th><th>En proceso</th><th>Iniciado</th></tr>
+            </thead>
+            <tbody>
+              ${groupRows.map(g => `
+                <tr>
+                  <td>${escapeHtml(g.name)}</td>
+                  <td>${escapeHtml(g.level)}</td>
+                  <td>${g.total}</td>
+                  <td>${pct(g.L, g.total)}% (${g.L})</td>
+                  <td>${pct(g.EP, g.total)}% (${g.EP})</td>
+                  <td>${pct(g.I, g.total)}% (${g.I})</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+        ${unitRows.length ? `
+        <div class="report-section">
+          <h2><i class="fa-solid fa-book-open"></i> Desempeño por unidad didáctica</h2>
+          <table class="report-table">
+            <thead>
+              <tr><th>Unidad</th><th>Ámbito</th><th>Mediciones</th><th>Logrado</th><th>En proceso</th><th>Iniciado</th></tr>
+            </thead>
+            <tbody>
+              ${unitRows.map(u => `
+                <tr>
+                  <td>${escapeHtml(u.name)}</td>
+                  <td>${escapeHtml(u.scope || '—')}</td>
+                  <td>${u.total}</td>
+                  <td>${pct(u.L, u.total)}% (${u.L})</td>
+                  <td>${pct(u.EP, u.total)}% (${u.EP})</td>
+                  <td>${pct(u.I, u.total)}% (${u.I})</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+        <div class="report-section">
+          <h2><i class="fa-solid fa-lightbulb"></i> Lectura pedagógica</h2>
+          <div style="padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12.5px;line-height:1.6">
+            ${analysis(c.label, counts)}
+          </div>
+        </div>
+
+        ${docFooter()}
+      `;
+    }
+
+    function analysis(label, c) {
+      if (!c.total) return `Aún no hay mediciones del criterio <strong>${escapeHtml(label)}</strong>. Empieza aplicando rúbricas a tus estudiantes para obtener información útil.`;
+      const pL = c.L / c.total * 100;
+      const pI = c.I / c.total * 100;
+      if (pL >= 70) return `El criterio <strong>${escapeHtml(label)}</strong> muestra un desempeño sólido: el ${Math.round(pL)}% de las mediciones está en nivel <strong>Logrado</strong>. Sigue con la misma estrategia y refuerza a quienes aún están en proceso.`;
+      if (pI >= 40) return `El criterio <strong>${escapeHtml(label)}</strong> requiere atención: el ${Math.round(pI)}% de las mediciones está en <strong>Iniciado</strong>. Recomendamos implementar acciones de mediación cognitiva y revisar la progresión de actividades.`;
+      return `El criterio <strong>${escapeHtml(label)}</strong> muestra un avance mixto: ${Math.round(pL)}% Logrado, ${Math.round(c.EP/c.total*100)}% En Proceso, ${Math.round(pI/c.total*100)}% Iniciado. Conviene identificar a los estudiantes en EP/I y aplicar acciones de apoyo focalizadas.`;
+    }
+
+    function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
+
+    init();
+  </script>
+</body>
+</html>

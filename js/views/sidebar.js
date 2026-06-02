@@ -10,7 +10,8 @@ const NAV_ITEMS = [
   { key: 'dashboard',       href: 'dashboard.html',       icon: 'table-list',     label: 'Grupos' },
   { key: 'units',           href: 'units.html',           icon: 'book-open',      label: 'Unidades didácticas' },
   { key: 'group-tracking',  href: 'group-tracking.html',  icon: 'chart-column',   label: 'Seguimiento grupal' },
-  { key: 'self-eval',       href: 'self-eval.html',       icon: 'user-pen',       label: 'Autoevaluación' }
+  { key: 'self-eval',       href: 'self-eval.html',       icon: 'user-pen',       label: 'Autoevaluación' },
+  { key: 'reports',         href: 'reports.html',         icon: 'file-lines',     label: 'Informes' }
 ];
 
 export function renderSidebar(containerEl, activeKey) {
@@ -33,11 +34,6 @@ export function renderSidebar(containerEl, activeKey) {
           <span>${escapeHtml(it.label)}</span>
         </a>
       `).join('')}
-      <span class="nav-item nav-item-disabled" title="Próximamente">
-        <span class="icon">${Icon.i('file-pdf')}</span>
-        <span>Informes</span>
-        <span class="badge-soon">Pronto</span>
-      </span>
     </nav>
     <div class="sidebar-footer">
       <div class="user-card">

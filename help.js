@@ -427,6 +427,30 @@
         text: '<p>Registra la autoevaluación. Quedará asociada a la unidad activa con la fecha y hora.</p>',
         attachTo: { element: 'button[type="submit"]', on: 'top' },
         buttons: [ btn('Atrás', function () { this.back(); }), btn('Finalizar', function () { this.complete(); }, true) ] }
+    ],
+
+    /* ---- REPORTS (Informes) ---- */
+    'reports': [
+      { id: 'welcome', title: '<i class="fa-solid fa-file-lines"></i> Informes',
+        text: '<p>Genera reportes imprimibles con la información consolidada de tus estudiantes, grupos, unidades y criterios cognitivos.</p>',
+        buttons: [ btn('Saltar', function () { this.cancel(); }), btn('Siguiente', function () { this.next(); }, true) ] },
+      { id: 'tabs', title: '<i class="fa-solid fa-layer-group"></i> Cuatro tipos de informe',
+        text: '<p>Usa las pestañas para cambiar entre:</p><p><strong>Por estudiante</strong>: ficha individual completa.<br><strong>Por grupo</strong>: agregado del grupo.<br><strong>Por unidad</strong>: avance por unidad didáctica.<br><strong>Criterios cognitivos</strong>: análisis de cada criterio.</p>',
+        attachTo: { element: '#segControl', on: 'bottom' },
+        buttons: [ btn('Atrás', function () { this.back(); }), btn('Siguiente', function () { this.next(); }, true) ] },
+      { id: 'selector', title: '<i class="fa-solid fa-arrow-down-wide-short"></i> Elige la entidad',
+        text: '<p>El selector a la derecha cambia según el tipo de informe: estudiantes, grupos, unidades o criterios. Cada cambio recarga la vista con los datos reales del localStorage.</p>',
+        attachTo: { element: '#entitySel', on: 'bottom' },
+        buttons: [ btn('Atrás', function () { this.back(); }), btn('Siguiente', function () { this.next(); }, true) ] },
+      { id: 'doc', title: '<i class="fa-solid fa-file"></i> Documento imprimible',
+        text: '<p>El informe se muestra como un documento con cabecera institucional, secciones claras y un pie con espacios de firma. Ideal para entregar a padres o coordinadores.</p>',
+        attachTo: { element: '.report-doc', on: 'top' },
+        scrollTo: true,
+        buttons: [ btn('Atrás', function () { this.back(); }), btn('Siguiente', function () { this.next(); }, true) ] },
+      { id: 'print', title: '<i class="fa-solid fa-print"></i> Imprimir o guardar como PDF',
+        text: '<p>Usa el botón <strong>Imprimir / PDF</strong> de la barra superior. Se abrirá el diálogo del navegador, desde donde puedes enviar a tu impresora o elegir "Guardar como PDF" para archivarlo.</p>',
+        attachTo: { element: '#printBtn', on: 'bottom' },
+        buttons: [ btn('Atrás', function () { this.back(); }), btn('Finalizar', function () { this.complete(); }, true) ] }
     ]
   };
 
