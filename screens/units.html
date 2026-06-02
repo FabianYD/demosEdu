@@ -60,9 +60,25 @@
       if (!window.App) { setTimeout(init, 50); return; }
       if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
       renderSidebar(document.getElementById('sidebar'), 'units');
-      render();
+      const newUnitBtn = document.getElementById('newUnitBtn');
+      if (newUnitBtn) {
+        newUnitBtn.addEventListener('click', () => {
+          try {
+            openUnitModal();
+          } catch (err) {
+            console.error('No se pudo abrir el modal de unidad', err);
+            window.App.toast({ type: 'error', title: 'No se pudo abrir el modal', message: 'Revisa la consola para mas detalles.' });
+          }
+        });
+      }
+      window.openUnitModal = openUnitModal;
+      try {
+        render();
+      } catch (err) {
+        console.error('Error al renderizar unidades', err);
+        window.App.toast({ type: 'error', title: 'Error al cargar unidades', message: 'Revisa la consola para mas detalles.' });
+      }
       window.App.bus.on(window.App.EVENTS.UNITS_CHANGED, render);
-      document.getElementById('newUnitBtn').addEventListener('click', openUnitModal);
       document.querySelectorAll('.filter-chip').forEach(b => {
         b.addEventListener('click', () => {
           currentFilter = b.dataset.filter;
@@ -191,9 +207,14 @@
     }
 
     function openUnitModal(id) {
+      if (!window.App || !window.App.groups || !window.App.units) {
+        window.App && window.App.toast({ type: 'info', title: 'Cargando...', message: 'Espera un momento y vuelve a intentar.' });
+        return;
+      }
       const isEdit = !!id;
       const u = isEdit ? window.App.units.get(id) : { name: '', scope: 'Convivencia', weeks: 4, groupIds: [], objectives: '', skills: '', activities: '', technique: 'Aprendizaje Basado en Problemas (ABP)', criteria: '' };
       if (isEdit && !u) return;
+      const normalizedGroupIds = Array.isArray(u.groupIds) ? u.groupIds : (u.groupIds ? [u.groupIds] : []);
       const allGroups = window.App.groups.list();
       const body = document.createElement('div');
       body.innerHTML = `
@@ -210,7 +231,7 @@
           <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
             ${allGroups.map(g => `
               <label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">
-                <input type="checkbox" name="groupIds" value="${g.id}" ${u.groupIds.includes(g.id)?'checked':''}/> ${escapeHtml(g.name)}
+                <input type="checkbox" name="groupIds" value="${g.id}" ${normalizedGroupIds.includes(g.id)?'checked':''}/> ${escapeHtml(g.name)}
               </label>
             `).join('') || '<span style="color:var(--muted);font-size:12px">No hay grupos. Crea uno primero.</span>'}
           </div>
