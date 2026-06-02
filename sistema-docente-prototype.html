@@ -1,0 +1,125 @@
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sistema Docente — Prototipo</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .launcher {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .launcher h1 {
+      font: 600 28px/1.2 var(--font-display);
+      letter-spacing: -0.02em;
+      margin-bottom: 4px;
+    }
+    .launcher .sub {
+      color: var(--muted);
+      margin-bottom: 32px;
+      font-size: 14px;
+    }
+    .launcher .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+    .launcher .card-link {
+      display: block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      text-decoration: none;
+      color: var(--fg);
+      transition: all 0.15s;
+    }
+    .launcher .card-link:hover {
+      border-color: var(--accent);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+      text-decoration: none;
+    }
+    .launcher .card-link .icon-lg {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    .launcher .card-link h3 {
+      font: 500 15px/1.2 var(--font-display);
+      margin-bottom: 4px;
+    }
+    .launcher .card-link p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="launcher">
+    <h1>Sistema Docente</h1>
+    <p class="sub">Proyecto Semilleros UTN 2026 — Carrera de Software · Prototipo funcional</p>
+
+    <div class="grid">
+      <a class="card-link" href="screens/login.html">
+        <div class="icon-lg">🔐</div>
+        <h3>Iniciar sesión</h3>
+        <p>Pantalla de acceso protegido con usuario y contraseña</p>
+      </a>
+      <a class="card-link" href="screens/dashboard.html">
+        <div class="icon-lg">📋</div>
+        <h3>Mis grupos</h3>
+        <p>Gestión de grupos — lista, crear, acceder (RF-D01)</p>
+      </a>
+      <a class="card-link" href="screens/group.html">
+        <div class="icon-lg">👥</div>
+        <h3>Detalle del grupo</h3>
+        <p>Alumnos del grupo, añadir, evaluar y ver perfiles (RF-D01)</p>
+      </a>
+      <a class="card-link" href="screens/student.html">
+        <div class="icon-lg">👤</div>
+        <h3>Perfil del alumno</h3>
+        <p>Seguimiento individual, progreso, historial y notas (RF-D04)</p>
+      </a>
+      <a class="card-link" href="screens/evaluate.html">
+        <div class="icon-lg">✅</div>
+        <h3>Evaluación con rúbrica</h3>
+        <p>Registro de evaluaciones individuales (RF-D03)</p>
+      </a>
+      <a class="card-link" href="screens/monitoring.html">
+        <div class="icon-lg">📝</div>
+        <h3>Ficha de monitoreo</h3>
+        <p>Campos de clasificación, seriación, asimilación y más (RF-D06)</p>
+      </a>
+      <a class="card-link" href="screens/units.html">
+        <div class="icon-lg">📖</div>
+        <h3>Unidades didácticas</h3>
+        <p>Planificación de actividades y criterios de evaluación (RF-D02)</p>
+      </a>
+      <a class="card-link" href="screens/group-tracking.html">
+        <div class="icon-lg">📊</div>
+        <h3>Seguimiento grupal</h3>
+        <p>Vista consolidada del grupo por criterio (RF-D05)</p>
+      </a>
+      <a class="card-link" href="screens/self-eval.html">
+        <div class="icon-lg">🪞</div>
+        <h3>Autoevaluación docente</h3>
+        <p>Formulario de autoevaluación del desempeño (RF-D07)</p>
+      </a>
+    </div>
+
+    <div class="card" style="margin-top:32px;padding:16px 20px">
+      <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <div style="font-size:13px;color:var(--muted)">
+          <strong style="color:var(--fg)">RF cubiertos:</strong> D01 · D02 · D03 · D04 · D05 · D06 · D07
+        </div>
+        <div style="font-size:13px;color:var(--muted)">
+          <strong style="color:var(--fg)">Fuera del alcance:</strong> D08 (mensajería) · D09 (repositorio multimedia) · D10 (informes PDF exportables)
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

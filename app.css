@@ -1,0 +1,155 @@
+/* ===================================================================
+   APP.CSS — estilos para los nuevos componentes
+   (Modal con header, sidebar mejorado, helpers, etc.)
+   =================================================================== */
+
+/* --- Modal con header --- */
+.overlay { backdrop-filter: blur(2px); }
+.modal { padding: 0; overflow: hidden; }
+.modal-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-header h3 { margin: 0; flex: 1; font: 600 16px/1.3 var(--font-display); letter-spacing: -0.01em; }
+.modal-icon { font-size: 20px; color: var(--accent); display: grid; place-items: center; }
+.modal-close {
+  background: none; border: none; cursor: pointer; color: var(--muted);
+  width: 28px; height: 28px; border-radius: 6px;
+  display: grid; place-items: center; font-size: 14px;
+  transition: background 0.12s;
+}
+.modal-close:hover { background: var(--bg); color: var(--fg); }
+.modal-body { padding: 18px 22px; max-height: 60vh; overflow-y: auto; }
+.modal-footer { padding: 12px 22px 16px; border-top: 1px solid var(--border); }
+
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover { filter: brightness(1.08); }
+
+/* --- Sidebar: user card y sub --- */
+.sidebar-header .sub { display:block; font-size: 10.5px; color: var(--muted); letter-spacing: 0.03em; margin-top: 1px; }
+.sidebar-header a.logo { text-decoration: none; color: #fff; }
+.sidebar-header a.logo:hover { text-decoration: none; }
+.user-card {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 8px; margin: 4px 8px;
+}
+.user-card .avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center;
+  font: 600 12px var(--font-display); flex-shrink: 0;
+}
+.user-card .user-info { flex: 1; min-width: 0; }
+.user-card .user-name { font: 500 13px/1.2 var(--font); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-card .user-role { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.user-card .btn-icon { background: none; border: none; cursor: pointer; color: var(--muted); padding: 6px; border-radius: 6px; font-size: 13px; }
+.user-card .btn-icon:hover { background: var(--bg); color: var(--fg); }
+.badge-soon {
+  margin-left: auto;
+  font: 500 9.5px/1 var(--font-mono); letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--border); color: var(--muted);
+  text-transform: uppercase;
+}
+.nav-item-disabled { cursor: not-allowed; opacity: 0.55; }
+
+/* --- Breadcrumb --- */
+.bc { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.bc-link { color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.bc-link:hover { color: var(--accent); text-decoration: none; }
+.bc-current { color: var(--fg); font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
+.bc-sep { color: var(--muted); font-size: 9px; opacity: 0.6; }
+.bc-icon { font-size: 11px; }
+
+/* --- Topbar mejoras --- */
+.topbar h2 .h2-prefix { color: var(--muted); font-weight: 400; margin-right: 4px; }
+
+/* --- Form actions row --- */
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
+
+/* --- Empty state --- */
+.empty-state { text-align: center; padding: 48px 20px; color: var(--muted); }
+.empty-state .icon { font-size: 40px; margin-bottom: 12px; opacity: 0.4; display: block; }
+.empty-state h3 { font: 500 16px/1.2 var(--font-display); margin-bottom: 4px; color: var(--fg); }
+.empty-state p { font-size: 13px; margin-bottom: 12px; }
+.empty-state .btn { margin-top: 8px; }
+
+/* --- Filter chips (units) --- */
+.filter-chip {
+  font: 500 12px/1 var(--font);
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--muted); cursor: pointer;
+  transition: all 0.12s;
+}
+.filter-chip:hover { background: var(--bg); }
+.filter-chip.active {
+  background: var(--accent-muted); color: var(--accent);
+  border-color: var(--accent-muted); font-weight: 500;
+}
+
+/* --- Action icon button --- */
+.icon-btn {
+  width: 30px; height: 30px; padding: 0;
+  display: grid; place-items: center;
+  border-radius: 6px;
+  background: transparent; border: 1px solid transparent;
+  color: var(--muted); cursor: pointer;
+  transition: all 0.12s; font-size: 13px;
+}
+.icon-btn:hover { background: var(--bg); color: var(--fg); border-color: var(--border); }
+.icon-btn.danger:hover { color: var(--danger); border-color: var(--danger); background: oklch(55% 0.18 25 / 0.05); }
+.icon-btn.primary:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-muted); }
+
+/* --- Inline action group --- */
+.inline-actions { display: inline-flex; gap: 4px; }
+
+/* --- Stat icon --- */
+.stat-card { display: flex; flex-direction: column; }
+.stat-card .stat-icon {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--accent-muted); color: var(--accent);
+  display: grid; place-items: center;
+  font-size: 14px; margin-bottom: 8px;
+}
+.stat-card .stat-icon.success { background: oklch(55% 0.15 145 / 0.1); color: var(--success); }
+.stat-card .stat-icon.warning { background: oklch(65% 0.14 85 / 0.1); color: var(--warning); }
+.stat-card .stat-icon.danger  { background: oklch(55% 0.18 25 / 0.1); color: var(--danger); }
+
+/* --- Responsive --- */
+@media (max-width: 768px) {
+  .modal { max-width: 100% !important; margin: 12px; max-height: 90vh; overflow-y: auto; }
+  .modal-body { max-height: 60vh; }
+}
+
+/* --- Form row helper --- */
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
+/* --- Hidden helper --- */
+[hidden] { display: none !important; }
+
+/* --- Labeled action button (icon + texto) --- */
+.btn-action {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 6px;
+  font: 500 12px/1 var(--font);
+  background: transparent; border: 1px solid var(--border);
+  color: var(--fg); cursor: pointer;
+  transition: all 0.12s; white-space: nowrap;
+}
+.btn-action i { font-size: 12px; opacity: 0.85; }
+.btn-action:hover { background: var(--bg); border-color: var(--accent); color: var(--accent); }
+.btn-action.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-action.primary:hover { filter: brightness(1.08); color: #fff; }
+.btn-action.danger:hover { color: var(--danger); border-color: var(--danger); background: oklch(55% 0.18 25 / 0.05); }
+.btn-action.warning { color: var(--warning); border-color: oklch(65% 0.14 85 / 0.3); }
+.btn-action.warning:hover { background: oklch(65% 0.14 85 / 0.08); border-color: var(--warning); }
+
+/* Highlight pulsante para una unidad recién creada/clonada */
+@keyframes pulse-highlight {
+  0%   { box-shadow: 0 0 0 0 oklch(55% 0.15 230 / 0.45); }
+  100% { box-shadow: 0 0 0 14px oklch(55% 0.15 230 / 0); }
+}
+.pulse-highlight { animation: pulse-highlight 1.4s ease-out 2; border-color: var(--accent) !important; }

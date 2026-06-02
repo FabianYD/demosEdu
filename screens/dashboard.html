@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mis grupos — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-left">
+          <h2><i class="fa-solid fa-table-list" style="color:var(--accent);margin-right:8px"></i>Mis grupos</h2>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn" id="resetDataBtn" title="Restaurar datos de demo" style="font-size:12px">
+            <i class="fa-solid fa-rotate-left"></i> Demo
+          </button>
+          <button class="btn btn-primary" id="newGroupBtn">
+            <i class="fa-solid fa-plus"></i> Nuevo grupo
+          </button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="grid-2" style="margin-bottom:24px" id="statsGrid"></div>
+        <div class="card" id="groupsCard">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-people-group" style="color:var(--accent);margin-right:6px"></i>Listado de grupos</h3>
+            <input type="search" id="searchGroup" placeholder="Buscar grupo..." style="width:auto;max-width:240px" />
+          </div>
+          <div class="table-wrap">
+            <table id="groupsTable">
+              <thead>
+                <tr>
+                  <th>Grupo</th>
+                  <th>Nivel</th>
+                  <th>Alumnos</th>
+                  <th>Unidad activa</th>
+                  <th>Progreso</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="groupsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { Icon }          from '../js/views/icons.js';
+    import { Modal }         from '../js/views/modal.js';
+    import { escapeHtml }    from '../js/core/dom.js';
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      const { auth, groups, students, units, evaluations } = window.App;
+      if (!auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+
+      renderSidebar(document.getElementById('sidebar'), 'dashboard');
+
+      // Render inicial
+      render();
+      window.App.bus.on(window.App.EVENTS.GROUPS_CHANGED,    render);
+      window.App.bus.on(window.App.EVENTS.STUDENTS_CHANGED,  render);
+      window.App.bus.on(window.App.EVENTS.EVALS_CHANGED,     render);
+
+      // Búsqueda en vivo
+      document.getElementById('searchGroup').addEventListener('input', render);
+
+      // Botón nuevo grupo
+      document.getElementById('newGroupBtn').addEventListener('click', openNewGroupModal);
+      document.getElementById('resetDataBtn').addEventListener('click', openResetConfirm);
+    }
+
+    function render() {
+      const { groups, students, units, evaluations, Icon } = window.App;
+      const all = groups.list();
+      const q = (document.getElementById('searchGroup').value || '').trim().toLowerCase();
+      const filtered = q ? all.filter(g => g.name.toLowerCase().includes(q) || g.level.toLowerCase().includes(q)) : all;
+
+      // Stats globales
+      const totalStudents = students.list().length;
+      const totalEvals    = evaluations.list().length;
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="card stat-card">
+          <span class="stat-icon"><i class="fa-solid fa-people-group"></i></span>
+          <div class="value" data-count="${all.length}">${all.length}</div>
+          <div class="label">Grupos activos</div>
+        </div>
+        <div class="card stat-card">
+          <span class="stat-icon success"><i class="fa-solid fa-user-graduate"></i></span>
+          <div class="value" data-count="${totalStudents}">${totalStudents}</div>
+          <div class="label">Alumnos en total</div>
+        </div>
+      `;
+
+      // Tabla
+      const tbody = document.getElementById('groupsTbody');
+      if (!filtered.length) {
+        tbody.innerHTML = `
+          <tr><td colspan="6">
+            <div class="empty-state">
+              <span class="icon"><i class="fa-regular fa-folder-open"></i></span>
+              <h3>No hay grupos</h3>
+              <p>Crea tu primer grupo para empezar.</p>
+              <button class="btn btn-primary" onclick="document.getElementById('newGroupBtn').click()">
+                <i class="fa-solid fa-plus"></i> Nuevo grupo
+              </button>
+            </div>
+          </td></tr>
+        `;
+        return;
+      }
+      tbody.innerHTML = filtered.map(g => {
+        const sCount  = students.byGroup(g.id).length;
+        const evals   = evaluations.byGroup(g.id);
+        const evaluated = new Set(evals.map(e => e.studentId)).size;
+        const pct = sCount ? Math.round((evaluated / sCount) * 100) : 0;
+        const activeUnit = units.list().find(u => (g.unitIds||[]).includes(u.id) && u.status === 'active');
+        const unitName = activeUnit ? activeUnit.name : '— sin unidad —';
+        const pctClass = pct >= 100 ? 'badge-achieved' : pct >= 50 ? 'badge-progress' : 'badge-initiated';
+        return `
+          <tr data-group-id="${g.id}">
+            <td>
+              <a href="group.html?grupo=${g.id}" style="font-weight:600">
+                <i class="fa-solid fa-folder-tree" style="color:var(--accent);margin-right:6px"></i>
+                ${escapeHtml(g.name)}
+              </a>
+            </td>
+            <td><span class="badge badge-active">${escapeHtml(g.level)}</span></td>
+            <td>${sCount}</td>
+            <td>${escapeHtml(unitName)}</td>
+            <td>
+              <span class="badge ${pctClass}">${evaluated}/${sCount} (${pct}%)</span>
+            </td>
+            <td>
+              <div class="inline-actions">
+                <a class="btn-action primary" href="group.html?grupo=${g.id}" title="Abrir grupo">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir
+                </a>
+                <button class="btn-action" data-action="edit" title="Editar nombre y nivel">
+                  <i class="fa-solid fa-pen"></i> Editar
+                </button>
+                <button class="btn-action danger" data-action="delete" title="Eliminar grupo (se borrarán también sus alumnos, evaluaciones y notas)">
+                  <i class="fa-solid fa-trash"></i> Eliminar
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      // Wire acciones de fila
+      tbody.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', function () {
+          const tr = btn.closest('tr');
+          const id = tr.getAttribute('data-group-id');
+          if (btn.dataset.action === 'edit') openEditGroupModal(id);
+          if (btn.dataset.action === 'delete') openDeleteGroupConfirm(id);
+        });
+      });
+    }
+
+    /* ---------- Modales CRUD ---------- */
+    function openNewGroupModal() {
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="form-group">
+          <label>Nombre del grupo *</label>
+          <input type="text" name="name" placeholder="Ej: Inicial C, Primer A..." autofocus />
+        </div>
+        <div class="form-group">
+          <label>Nivel *</label>
+          <select name="level">
+            <option>Inicial</option>
+            <option>Básica elemental</option>
+            <option>Básica media</option>
+          </select>
+        </div>
+      `;
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'btn';
+      cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancelar';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button'; saveBtn.className = 'btn btn-primary';
+      saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Crear grupo';
+      footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+      cancelBtn.addEventListener('click', () => Modal.close());
+      saveBtn.addEventListener('click', () => {
+        const r = window.App.groups.create({
+          name:  body.querySelector('[name=name]').value.trim(),
+          level: body.querySelector('[name=level]').value
+        });
+        if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error }); return; }
+        Modal.close();
+        window.App.toast({ type: 'success', title: '¡Grupo creado!', message: 'Ahora puedes añadir alumnos desde el grupo.' });
+      });
+      Modal.open({ title: 'Crear nuevo grupo', icon: '<i class="fa-solid fa-folder-plus"></i>', body, footer });
+    }
+
+    function openEditGroupModal(id) {
+      const g = window.App.groups.get(id);
+      if (!g) return;
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="form-group">
+          <label>Nombre del grupo *</label>
+          <input type="text" name="name" value="${escapeHtml(g.name)}" />
+        </div>
+        <div class="form-group">
+          <label>Nivel</label>
+          <select name="level">
+            <option ${g.level==='Inicial'?'selected':''}>Inicial</option>
+            <option ${g.level==='Básica elemental'?'selected':''}>Básica elemental</option>
+            <option ${g.level==='Básica media'?'selected':''}>Básica media</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <select name="status">
+            <option value="active" ${g.status!=='archived'?'selected':''}>Activo</option>
+            <option value="archived" ${g.status==='archived'?'selected':''}>Archivado</option>
+          </select>
+        </div>
+      `;
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'btn';
+      cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancelar';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button'; saveBtn.className = 'btn btn-primary';
+      saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Guardar cambios';
+      footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+      cancelBtn.addEventListener('click', () => Modal.close());
+      saveBtn.addEventListener('click', () => {
+        const r = window.App.groups.update(id, {
+          name: body.querySelector('[name=name]').value.trim(),
+          level: body.querySelector('[name=level]').value,
+          status: body.querySelector('[name=status]').value
+        });
+        if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error }); return; }
+        Modal.close();
+        window.App.toast({ type: 'success', title: '¡Actualizado!', message: 'Cambios guardados correctamente.' });
+      });
+      Modal.open({ title: 'Editar grupo', icon: '<i class="fa-solid fa-pen-to-square"></i>', body, footer });
+    }
+
+    function openDeleteGroupConfirm(id) {
+      const g = window.App.groups.get(id);
+      const sCount = window.App.students.byGroup(id).length;
+      Modal.confirm({
+        title: 'Eliminar grupo',
+        message: `¿Seguro que quieres eliminar "${g.name}"? Se eliminarán también ${sCount} alumno(s) y todas sus evaluaciones, fichas y notas. Esta acción no se puede deshacer.`,
+        confirmText: 'Sí, eliminar',
+        danger: true,
+        icon: '<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i>',
+        onConfirm: () => {
+          window.App.groups.remove(id);
+          window.App.toast({ type: 'success', title: 'Grupo eliminado', message: 'Todos sus datos fueron removidos.' });
+        }
+      });
+    }
+
+    function openResetConfirm() {
+      Modal.confirm({
+        title: 'Restaurar datos de demo',
+        message: 'Esto borrará todos los cambios y volverá a cargar la información de demostración. ¿Continuar?',
+        confirmText: 'Restaurar',
+        icon: '<i class="fa-solid fa-rotate-left" style="color:var(--warning)"></i>',
+        onConfirm: () => {
+          window.App.resetAll();
+          window.App.toast({ type: 'info', title: 'Datos restaurados', message: 'La demo volvió a su estado inicial.' });
+        }
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

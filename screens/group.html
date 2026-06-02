@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grupo — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .student-actions { display: flex; gap: 4px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-left">
+          <a href="dashboard.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Grupos</a>
+          <h2 id="groupTitle">—</h2>
+        </div>
+        <div class="topbar-actions">
+          <a id="trackingLink" href="group-tracking.html" class="btn"><i class="fa-solid fa-chart-column"></i> Seguimiento grupal</a>
+          <button class="btn btn-primary" id="addStudentBtn"><i class="fa-solid fa-user-plus"></i> Añadir alumno</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="bc" id="breadcrumb"></div>
+        <div class="grid-4" style="margin-bottom:24px" id="statsGrid"></div>
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-user-graduate" style="color:var(--accent);margin-right:6px"></i>Alumnos del grupo</h3>
+            <input type="search" id="searchStudent" placeholder="Buscar alumno..." style="width:auto;max-width:240px" />
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Representante</th>
+                  <th>Contacto</th>
+                  <th>Evaluaciones</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="studentsTbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { Modal }         from '../js/views/modal.js';
+    import { escapeHtml }    from '../js/core/dom.js';
+
+    const params = new URLSearchParams(window.location.search);
+    const groupId = params.get('grupo');
+    if (!groupId) { window.location.href = 'dashboard.html'; }
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'dashboard');
+      render();
+      window.App.bus.on(window.App.EVENTS.STUDENTS_CHANGED, render);
+      window.App.bus.on(window.App.EVENTS.EVALS_CHANGED, render);
+      document.getElementById('searchStudent').addEventListener('input', render);
+      document.getElementById('addStudentBtn').addEventListener('click', openAddStudentModal);
+      // Pre-seleccionar grupo en tracking
+      document.getElementById('trackingLink').href = 'group-tracking.html?grupo=' + groupId;
+    }
+
+    function render() {
+      const g = window.App.groups.get(groupId);
+      if (!g) {
+        document.getElementById('groupTitle').textContent = 'Grupo no encontrado';
+        document.getElementById('studentsTbody').innerHTML = `<tr><td colspan="5"><div class="empty-state">
+          <span class="icon"><i class="fa-regular fa-folder-open"></i></span>
+          <h3>El grupo ya no existe</h3>
+          <p>Quizás fue eliminado. Vuelve al listado de grupos.</p>
+          <a class="btn btn-primary" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Ir a Mis grupos</a>
+        </div></td></tr>`;
+        return;
+      }
+      document.title = `${g.name} — Sistema Docente`;
+      document.getElementById('groupTitle').innerHTML =
+        `<i class="fa-solid fa-folder-tree" style="color:var(--accent);margin-right:8px"></i>${escapeHtml(g.name)}`;
+      document.getElementById('breadcrumb').innerHTML = `
+        <a class="bc-link" href="dashboard.html"><i class="fa-solid fa-house bc-icon"></i> Inicio</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="dashboard.html">Grupos</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <span class="bc-current">${escapeHtml(g.name)}</span>
+      `;
+
+      const all = window.App.students.byGroup(groupId);
+      const q = (document.getElementById('searchStudent').value || '').trim().toLowerCase();
+      const list = q ? all.filter(s => s.name.toLowerCase().includes(q) || (s.representative||'').toLowerCase().includes(q)) : all;
+
+      // Stats
+      const evaluated = new Set(window.App.evaluations.byGroup(groupId).map(e => e.studentId)).size;
+      const pct = all.length ? Math.round((evaluated / all.length) * 100) : 0;
+      const activeUnit = window.App.units.list().find(u => (g.unitIds||[]).includes(u.id) && u.status === 'active');
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="card stat-card">
+          <span class="stat-icon"><i class="fa-solid fa-user-graduate"></i></span>
+          <div class="value">${all.length}</div>
+          <div class="label">Alumnos</div>
+        </div>
+        <div class="card stat-card">
+          <span class="stat-icon success"><i class="fa-solid fa-clipboard-check"></i></span>
+          <div class="value">${evaluated}</div>
+          <div class="label">Evaluados en la unidad</div>
+        </div>
+        <div class="card stat-card">
+          <span class="stat-icon ${pct >= 100 ? 'success' : pct >= 50 ? 'warning' : 'danger'}"><i class="fa-solid fa-chart-line"></i></span>
+          <div class="value">${pct}%</div>
+          <div class="label">Progreso grupal</div>
+        </div>
+        <div class="card stat-card">
+          <span class="stat-icon"><i class="fa-solid fa-book-open"></i></span>
+          <div class="value" style="font-size:18px">${activeUnit ? activeUnit.name.replace(/^Unidad \d+ — /, 'U') : '—'}</div>
+          <div class="label">Unidad activa</div>
+        </div>
+      `;
+
+      // Tabla
+      const tbody = document.getElementById('studentsTbody');
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state">
+          <span class="icon"><i class="fa-solid fa-user-plus"></i></span>
+          <h3>${all.length ? 'Sin resultados' : 'Aún no hay alumnos'}</h3>
+          <p>${all.length ? 'Intenta con otro nombre o representante.' : 'Añade el primer alumno del grupo.'}</p>
+          ${all.length ? '' : '<button class="btn btn-primary" onclick="document.getElementById(\'addStudentBtn\').click()"><i class="fa-solid fa-user-plus"></i> Añadir alumno</button>'}
+        </div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = list.map(s => {
+        const evs = window.App.evaluations.byStudent(s.id);
+        const evClass = evs.length === 0 ? 'badge-initiated' : evs.length >= 3 ? 'badge-achieved' : 'badge-progress';
+        return `
+          <tr data-student-id="${s.id}">
+            <td>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="width:28px;height:28px;border-radius:50%;background:var(--accent-muted);color:var(--accent);display:grid;place-items:center;font:600 11px var(--font-display)">${escapeHtml(s.name.split(' ').map(w=>w[0]).slice(0,2).join(''))}</div>
+                <strong>${escapeHtml(s.name)}</strong>
+              </div>
+            </td>
+            <td>${escapeHtml(s.representative || '—')}</td>
+            <td><i class="fa-solid fa-phone" style="color:var(--muted);margin-right:4px"></i>${escapeHtml(s.phone || '—')}</td>
+            <td><span class="badge ${evClass}">${evs.length}/3</span></td>
+            <td class="student-actions">
+              <a href="student.html?alumno=${s.id}" class="btn-action primary" title="Ver perfil completo del alumno">
+                <i class="fa-regular fa-eye"></i> Perfil
+              </a>
+              <a href="evaluate.html?alumno=${s.id}" class="btn-action" title="Aplicar rúbrica cognitiva">
+                <i class="fa-solid fa-clipboard-check"></i> Evaluar
+              </a>
+              <button class="btn-action" data-action="edit" title="Editar nombre, representante o contacto">
+                <i class="fa-solid fa-pen"></i> Editar
+              </button>
+              <button class="btn-action danger" data-action="delete" title="Eliminar alumno (se borrarán sus evaluaciones, notas y monitoreos)">
+                <i class="fa-solid fa-trash"></i> Eliminar
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      tbody.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', function () {
+          const id = btn.closest('tr').getAttribute('data-student-id');
+          if (btn.dataset.action === 'edit') openEditStudentModal(id);
+          if (btn.dataset.action === 'delete') openDeleteStudentConfirm(id);
+        });
+      });
+    }
+
+    /* ---------- Modales CRUD ---------- */
+    function openAddStudentModal() {
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="form-group"><label>Nombre del alumno *</label><input type="text" name="name" placeholder="Nombre completo" autofocus /></div>
+        <div class="form-group"><label>Representante</label><input type="text" name="representative" placeholder="Representante / tutor" /></div>
+        <div class="form-group"><label>Teléfono</label><input type="text" name="phone" placeholder="099..." /></div>
+      `;
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'btn';
+      cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancelar';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button'; saveBtn.className = 'btn btn-primary';
+      saveBtn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Añadir alumno';
+      footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+      cancelBtn.addEventListener('click', () => Modal.close());
+      saveBtn.addEventListener('click', () => {
+        const r = window.App.students.create({
+          groupId: groupId,
+          name: body.querySelector('[name=name]').value.trim(),
+          representative: body.querySelector('[name=representative]').value.trim(),
+          phone: body.querySelector('[name=phone]').value.trim()
+        });
+        if (!r.ok) {
+          if (r.errors) {
+            window.App.toast({ type: 'error', title: 'Datos incompletos', message: Object.values(r.errors)[0] });
+          } else { window.App.toast({ type: 'error', title: 'Error', message: r.error }); }
+          return;
+        }
+        Modal.close();
+        window.App.toast({ type: 'success', title: '¡Alumno añadido!', message: 'Aparece ahora en la lista del grupo.' });
+      });
+      Modal.open({ title: 'Añadir alumno', icon: '<i class="fa-solid fa-user-plus"></i>', body, footer });
+    }
+
+    function openEditStudentModal(id) {
+      const s = window.App.students.get(id);
+      if (!s) return;
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="form-group"><label>Nombre *</label><input type="text" name="name" value="${escapeHtml(s.name)}" /></div>
+        <div class="form-group"><label>Representante</label><input type="text" name="representative" value="${escapeHtml(s.representative||'')}" /></div>
+        <div class="form-group"><label>Teléfono</label><input type="text" name="phone" value="${escapeHtml(s.phone||'')}" /></div>
+      `;
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'btn';
+      cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancelar';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button'; saveBtn.className = 'btn btn-primary';
+      saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Guardar cambios';
+      footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+      cancelBtn.addEventListener('click', () => Modal.close());
+      saveBtn.addEventListener('click', () => {
+        const r = window.App.students.update(id, {
+          name: body.querySelector('[name=name]').value.trim(),
+          representative: body.querySelector('[name=representative]').value.trim(),
+          phone: body.querySelector('[name=phone]').value.trim()
+        });
+        if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error }); return; }
+        Modal.close();
+        window.App.toast({ type: 'success', title: '¡Actualizado!', message: 'Datos del alumno guardados.' });
+      });
+      Modal.open({ title: 'Editar alumno', icon: '<i class="fa-solid fa-pen-to-square"></i>', body, footer });
+    }
+
+    function openDeleteStudentConfirm(id) {
+      const s = window.App.students.get(id);
+      Modal.confirm({
+        title: 'Eliminar alumno',
+        message: `¿Eliminar a "${s.name}"? Se eliminarán también sus evaluaciones, fichas y notas. Esta acción no se puede deshacer.`,
+        confirmText: 'Sí, eliminar',
+        danger: true,
+        icon: '<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i>',
+        onConfirm: () => {
+          window.App.students.remove(id);
+          window.App.toast({ type: 'success', title: 'Alumno eliminado', message: 'Todos sus datos fueron removidos.' });
+        }
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

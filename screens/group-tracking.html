@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Seguimiento por grupo — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .crit-bar {
+      display: flex; align-items: center; gap: 8px; padding: 6px 0;
+      border-bottom: 1px dashed var(--border);
+    }
+    .crit-bar:last-child { border-bottom: 0; }
+    .crit-bar .crit-name { width: 200px; font-size: 13px; }
+    .crit-bar .crit-track { flex: 1; display: flex; height: 14px; border-radius: 4px; overflow: hidden; background: var(--bg); border: 1px solid var(--border); }
+    .crit-bar .crit-track .seg { height: 100%; }
+    .crit-bar .crit-track .seg.L  { background: var(--success); }
+    .crit-bar .crit-track .seg.EP { background: var(--warning); }
+    .crit-bar .crit-track .seg.I  { background: var(--danger); }
+    .crit-bar .crit-counts { width: 90px; text-align: right; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .table-compact { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .table-compact th, .table-compact td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    .table-compact th { background: var(--bg); font-weight: 500; color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .mini-pill { display:inline-block;padding:1px 6px;border-radius:999px;font-size:10.5px;font-weight:500;margin-right:3px; }
+    .mini-pill.L  { background: oklch(55% 0.15 145 / 0.12); color: var(--success); }
+    .mini-pill.EP { background: oklch(65% 0.14 85 / 0.12); color: var(--warning); }
+    .mini-pill.I  { background: oklch(55% 0.18 25 / 0.12); color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-left">
+          <h2><i class="fa-solid fa-chart-column" style="color:var(--accent);margin-right:8px"></i>Seguimiento por grupo</h2>
+        </div>
+        <div class="topbar-actions">
+          <select id="groupSelector" class="unit-selector" style="padding:6px 10px;font-size:12.5px;max-width:280px"></select>
+        </div>
+      </div>
+      <div class="content">
+        <div class="bc" id="breadcrumb"></div>
+        <div id="trackingView"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { escapeHtml }    from '../js/core/dom.js';
+
+    const params   = new URLSearchParams(window.location.search);
+    let currentGid = params.get('grupo');
+
+    const CRITERIA = [
+      { key: 'clasificacion',  label: 'Clasificación' },
+      { key: 'seriacion',      label: 'Seriación' },
+      { key: 'construccion',   label: 'Construcción del conocimiento' },
+      { key: 'pensamiento',    label: 'Pensamiento reflexivo' },
+      { key: 'metacognicion',  label: 'Metacognición' }
+    ];
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'dashboard');
+      if (!currentGid) {
+        const first = window.App.groups.list()[0];
+        if (first) currentGid = first.id;
+      }
+      const all = window.App.groups.list();
+      const sel = document.getElementById('groupSelector');
+      sel.innerHTML = all.length
+        ? all.map(g => `<option value="${g.id}" ${g.id===currentGid?'selected':''}>${escapeHtml(g.name)}</option>`).join('')
+        : '<option>— sin grupos —</option>';
+      sel.addEventListener('change', () => { currentGid = sel.value; render(); });
+      window.App.bus.on(window.App.EVENTS.EVALUATIONS_CHANGED, render);
+      window.App.bus.on(window.App.EVENTS.GROUPS_CHANGED, () => {
+        const refreshed = window.App.groups.list();
+        sel.innerHTML = refreshed.length
+          ? refreshed.map(g => `<option value="${g.id}" ${g.id===currentGid?'selected':''}>${escapeHtml(g.name)}</option>`).join('')
+          : '<option>—</option>';
+        render();
+      });
+      render();
+    }
+
+    function render() {
+      const container = document.getElementById('trackingView');
+      const group = currentGid ? window.App.groups.get(currentGid) : null;
+      if (!group) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="icon"><i class="fa-solid fa-chart-column"></i></span>
+            <h3>Selecciona un grupo</h3>
+            <p>Elige un grupo del selector superior para ver el seguimiento.</p>
+          </div>
+        `;
+        return;
+      }
+      document.title = `Seguimiento · ${group.name} — Sistema Docente`;
+      const bc = document.getElementById('breadcrumb');
+      bc.innerHTML = `
+        <a class="bc-link" href="dashboard.html"><i class="fa-solid fa-house bc-icon"></i> Inicio</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="group.html?grupo=${group.id}">${escapeHtml(group.name)}</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <span class="bc-current">Seguimiento</span>
+      `;
+
+      const students = window.App.students.byGroup(group.id);
+      const evals    = window.App.evaluations.byGroup(group.id);
+
+      if (!students.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="icon"><i class="fa-solid fa-users-slash"></i></span>
+            <h3>${escapeHtml(group.name)} sin alumnos</h3>
+            <p>Añade alumnos al grupo para ver el seguimiento.</p>
+            <a class="btn btn-primary" href="group.html?grupo=${group.id}"><i class="fa-solid fa-user-plus"></i> Ir al grupo</a>
+          </div>
+        `;
+        return;
+      }
+
+      // Estadísticas
+      const totals = { L: 0, EP: 0, I: 0, total: 0 };
+      const byCrit = {};
+      CRITERIA.forEach(c => { byCrit[c.key] = { L: 0, EP: 0, I: 0 }; });
+
+      evals.forEach(ev => {
+        CRITERIA.forEach(c => {
+          const lvl = (ev.scores || {})[c.key];
+          if (lvl) {
+            totals[lvl]++; totals.total++;
+            byCrit[c.key][lvl]++;
+          }
+        });
+      });
+
+      const pctL = totals.total ? Math.round(totals.L / totals.total * 100) : 0;
+      const pctEP = totals.total ? Math.round(totals.EP / totals.total * 100) : 0;
+      const pctI = totals.total ? Math.round(totals.I / totals.total * 100) : 0;
+
+      // Estudiantes sin evaluación
+      const evaluated = new Set(evals.map(e => e.studentId));
+      const pending = students.filter(s => !evaluated.has(s.id));
+
+      container.innerHTML = `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-label">Alumnos</div><div class="stat-value">${students.length}</div><div class="stat-sub">${pending.length} pendiente(s) de evaluación</div></div>
+          <div class="stat-card"><div class="stat-label">Evaluaciones</div><div class="stat-value">${evals.length}</div><div class="stat-sub">${totals.total} criterios totales</div></div>
+          <div class="stat-card"><div class="stat-label">Logrado</div><div class="stat-value" style="color:var(--success)">${pctL}%</div><div class="stat-sub">${totals.L} de ${totals.total}</div></div>
+          <div class="stat-card"><div class="stat-label">En proceso</div><div class="stat-value" style="color:var(--warning)">${pctEP}%</div><div class="stat-sub">${totals.EP} de ${totals.total}</div></div>
+        </div>
+
+        <div class="card" style="padding:20px;margin-bottom:20px">
+          <h3 style="font:500 14px/1.2 var(--font-display);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <i class="fa-solid fa-chart-simple" style="color:var(--accent)"></i>
+            Distribución por criterio cognitivo
+          </h3>
+          ${CRITERIA.map(c => {
+            const d = byCrit[c.key];
+            const tot = d.L + d.EP + d.I;
+            if (!tot) {
+              return `<div class="crit-bar"><div class="crit-name">${escapeHtml(c.label)}</div><div class="crit-track" style="display:grid;place-items:center;color:var(--muted);font-size:11px">Sin datos</div><div class="crit-counts">—</div></div>`;
+            }
+            const pL = d.L / tot * 100, pEP = d.EP / tot * 100, pI = d.I / tot * 100;
+            return `
+              <div class="crit-bar">
+                <div class="crit-name">${escapeHtml(c.label)}</div>
+                <div class="crit-track">
+                  <div class="seg L"  style="width:${pL}%"></div>
+                  <div class="seg EP" style="width:${pEP}%"></div>
+                  <div class="seg I"  style="width:${pI}%"></div>
+                </div>
+                <div class="crit-counts">${d.L} · ${d.EP} · ${d.I}</div>
+              </div>
+            `;
+          }).join('')}
+          <div style="margin-top:12px;font-size:11.5px;color:var(--muted);display:flex;gap:14px">
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--success);border-radius:2px;vertical-align:middle"></span> Logrado</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--warning);border-radius:2px;vertical-align:middle"></span> En proceso</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:var(--danger);border-radius:2px;vertical-align:middle"></span> Iniciado</span>
+          </div>
+        </div>
+
+        <div class="card" style="padding:20px">
+          <h3 style="font:500 14px/1.2 var(--font-display);margin-bottom:12px;display:flex;align-items:center;gap:8px">
+            <i class="fa-solid fa-table-list" style="color:var(--accent)"></i>
+            Detalle por alumno (última evaluación)
+          </h3>
+          <div style="overflow-x:auto">
+            <table class="table-compact">
+              <thead>
+                <tr>
+                  <th>Alumno</th>
+                  ${CRITERIA.map(c => `<th>${escapeHtml(c.label).substring(0,16)}</th>`).join('')}
+                  <th>Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${students.map(s => {
+                  const evs = evals.filter(e => e.studentId === s.id);
+                  const last = evs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+                  if (!last) {
+                    return `<tr><td><a href="student.html?alumno=${s.id}">${escapeHtml(s.name)}</a></td>${CRITERIA.map(() => '<td><span style="color:var(--muted);font-size:11px">—</span></td>').join('')}<td><span style="color:var(--muted);font-size:11px">pendiente</span></td></tr>`;
+                  }
+                  return `
+                    <tr>
+                      <td><a href="student.html?alumno=${s.id}">${escapeHtml(s.name)}</a></td>
+                      ${CRITERIA.map(c => {
+                        const lvl = (last.scores || {})[c.key];
+                        return `<td>${lvl ? `<span class="mini-pill ${lvl}">${lvl}</span>` : '<span style="color:var(--muted)">—</span>'}</td>`;
+                      }).join('')}
+                      <td><span style="color:var(--muted);font-size:11.5px">${escapeHtml(new Date(last.createdAt).toLocaleDateString('es'))}</span></td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ficha de monitoreo — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .field-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px; margin-bottom: 12px;
+    }
+    .field-card h4 { font: 500 14px/1.2 var(--font-display); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .field-card .indicator-q {
+      font-size: 12px; color: var(--muted); font-style: italic;
+      margin-bottom: 8px; line-height: 1.4;
+    }
+    .field-card .field-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+    .field-card .field-row select { width: auto; min-width: 130px; padding: 6px 10px; font-size: 12px; }
+    .field-card .actions-support { margin-top: 8px; }
+    .field-card .actions-support label {
+      display: block; font-size: 11px; color: var(--muted);
+      font-weight: 500; letter-spacing: 0.01em; margin-bottom: 3px;
+    }
+    .field-card textarea { min-height: 50px; font-size: 12px; }
+    .level-pill {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 500;
+    }
+    .level-pill.I { background: oklch(55% 0.18 25 / 0.1); color: var(--danger); }
+    .level-pill.EP { background: oklch(65% 0.14 85 / 0.1); color: var(--warning); }
+    .level-pill.L { background: oklch(55% 0.15 145 / 0.1); color: var(--success); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-left">
+          <a id="backLink" href="evaluate.html" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> Evaluación</a>
+          <h2><i class="fa-solid fa-file-lines" style="color:var(--accent);margin-right:8px"></i>Ficha de monitoreo</h2>
+        </div>
+        <div class="topbar-actions">
+          <select id="unitSelector" class="unit-selector" style="padding:6px 10px;font-size:12.5px;max-width:320px"></select>
+        </div>
+      </div>
+      <div class="content" style="max-width:760px">
+        <div class="bc" id="breadcrumb"></div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:20px">
+          <i class="fa-solid fa-circle-info" style="color:var(--accent);margin-right:6px"></i>
+          Ficha de monitoreo basada en la rúbrica de desarrollo cognitivo. Complete observaciones, nivel de logro y acciones de apoyo.
+        </p>
+        <div class="card" style="margin-bottom:16px" id="studentHeader"></div>
+        <form id="monForm">
+          <div id="fieldsContainer"></div>
+          <div class="form-actions" style="margin-top:20px">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Guardar ficha</button>
+            <a id="profileLink" class="btn"><i class="fa-solid fa-user"></i> Ver perfil del alumno</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { escapeHtml }    from '../js/core/dom.js';
+
+    const params = new URLSearchParams(window.location.search);
+    const studentId = params.get('alumno');
+    if (!studentId) window.location.href = 'dashboard.html';
+
+    const FIELDS = [
+      { key: 'clasificacion',   label: 'Clasificación',          q: '¿Agrupa objetos de cuidado personal vs. limpieza del hogar?' },
+      { key: 'seriacion',       label: 'Seriación',              q: '¿Ordena los pasos para el lavado de manos o cruce de calle?' },
+      { key: 'asimilacion',     label: 'Asimilación / Acomodación', q: '¿Aplica lo aprendido sobre riesgos a una nueva situación?' },
+      { key: 'justificacion',   label: 'Justificación lógica',   q: '¿Explica por qué una acción es segura o peligrosa?' },
+      { key: 'autorregulacion', label: 'Autorregulación',        q: '¿Identifica cuándo necesita ayuda o cometió un error?' }
+    ];
+
+    let currentUnitId = null;
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'dashboard');
+      render();
+      window.App.bus.on(window.App.EVENTS.MONITORING_CHANGED, render);
+      document.getElementById('unitSelector').addEventListener('change', function () {
+        currentUnitId = this.value;
+        render();
+      });
+      document.getElementById('monForm').addEventListener('submit', submitForm);
+    }
+
+    function render() {
+      const s = window.App.students.get(studentId);
+      if (!s) { window.location.href = 'dashboard.html'; return; }
+      const g = window.App.groups.get(s.groupId);
+      const initials = s.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+      document.title = `Ficha de ${s.name} — Sistema Docente`;
+
+      const availableUnits = window.App.units.list().filter(u => (u.groupIds||[]).includes(s.groupId) && u.status === 'active');
+      if (!currentUnitId || !availableUnits.find(u => u.id === currentUnitId)) {
+        currentUnitId = availableUnits.length ? availableUnits[0].id : null;
+      }
+      const sel = document.getElementById('unitSelector');
+      sel.innerHTML = availableUnits.length
+        ? availableUnits.map(u => `<option value="${u.id}" ${u.id===currentUnitId?'selected':''}>${escapeHtml(u.name)}</option>`).join('')
+        : '<option>— sin unidades activas —</option>';
+
+      document.getElementById('studentHeader').innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:40px;height:40px;border-radius:50%;background:var(--accent-muted);color:var(--accent);display:grid;place-items:center;font-weight:600">${escapeHtml(initials)}</div>
+          <div>
+            <div style="font-weight:500">${escapeHtml(s.name)}</div>
+            <div style="font-size:12px;color:var(--muted)">${escapeHtml(g ? g.name : '—')}</div>
+          </div>
+        </div>
+      `;
+      document.getElementById('breadcrumb').innerHTML = `
+        <a class="bc-link" href="dashboard.html"><i class="fa-solid fa-house bc-icon"></i> Inicio</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="group.html?grupo=${s.groupId}">${escapeHtml(g ? g.name : 'Grupo')}</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="student.html?alumno=${s.id}">${escapeHtml(s.name)}</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <span class="bc-current">Monitoreo</span>
+      `;
+      document.getElementById('backLink').href = 'evaluate.html?alumno=' + s.id;
+      document.getElementById('profileLink').href = 'student.html?alumno=' + s.id;
+
+      // Cargar ficha previa
+      const prev = currentUnitId ? window.App.monitoring.byStudent(studentId).find(m => m.unitId === currentUnitId) : null;
+      const prevF = (prev && prev.fields) || {};
+
+      const c = document.getElementById('fieldsContainer');
+      c.innerHTML = FIELDS.map(f => {
+        const v = prevF[f.key] || { level: 'EP', observations: '', support: '' };
+        return `
+          <div class="field-card">
+            <h4><i class="fa-solid fa-clipboard-list" style="color:var(--accent)"></i> ${escapeHtml(f.label)}</h4>
+            <div class="indicator-q">${escapeHtml(f.q)}</div>
+            <div class="field-row">
+              <select name="level_${f.key}">
+                <option value="L"  ${v.level==='L'?'selected':''}>Logrado (L)</option>
+                <option value="EP" ${v.level==='EP'?'selected':''}>En Proceso (EP)</option>
+                <option value="I"  ${v.level==='I'?'selected':''}>Iniciado (I)</option>
+              </select>
+            </div>
+            <div class="actions-support">
+              <label>Observaciones detalladas</label>
+              <textarea name="obs_${f.key}" placeholder="Lo que observaste del alumno...">${escapeHtml(v.observations || '')}</textarea>
+              <label style="margin-top:8px;display:block">Acciones de apoyo (mediación cognitiva)</label>
+              <textarea name="sup_${f.key}" placeholder="Estrategias que aplicarás...">${escapeHtml(v.support || '')}</textarea>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function submitForm(e) {
+      e.preventDefault();
+      if (!currentUnitId) {
+        window.App.toast({ type: 'error', title: 'Sin unidad', message: 'Este grupo no tiene unidades activas.' });
+        return;
+      }
+      const fields = {};
+      FIELDS.forEach(f => {
+        fields[f.key] = {
+          level: document.querySelector(`[name=level_${f.key}]`).value,
+          observations: document.querySelector(`[name=obs_${f.key}]`).value.trim(),
+          support: document.querySelector(`[name=sup_${f.key}]`).value.trim()
+        };
+      });
+      const r = window.App.monitoring.save({ studentId, unitId: currentUnitId, fields });
+      if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error || 'No se pudo guardar' }); return; }
+      window.App.toast({ type: 'success', title: '¡Ficha guardada!', message: 'Las 5 áreas quedaron registradas.' });
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Autoevaluación — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .q-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; margin-bottom: 12px; }
+    .q-card .q-num { display: inline-block; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-muted); color: var(--accent); text-align: center; line-height: 26px; font-weight: 600; font-size: 12px; margin-right: 8px; }
+    .q-card .q-text { font-size: 13.5px; line-height: 1.4; margin-bottom: 10px; }
+    .q-card .answers { display: flex; gap: 8px; flex-wrap: wrap; }
+    .answer-btn { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); cursor: pointer; font-size: 12.5px; transition: all .15s; }
+    .answer-btn:hover { border-color: var(--accent); }
+    .answer-btn.active { font-weight: 500; }
+    .answer-btn.active.si { background: oklch(55% 0.15 145 / 0.12); color: var(--success); border-color: var(--success); }
+    .answer-btn.active.ep { background: oklch(65% 0.14 85 / 0.12); color: var(--warning); border-color: var(--warning); }
+    .answer-btn.active.no { background: oklch(55% 0.18 25 / 0.12); color: var(--danger); border-color: var(--danger); }
+    .q-card textarea { margin-top: 10px; min-height: 50px; font-size: 12px; }
+    .counter {
+      position: sticky; top: 12px; z-index: 5;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 12px 16px;
+      display: flex; gap: 18px; align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+      margin-bottom: 16px;
+    }
+    .counter .seg { display: flex; align-items: center; gap: 4px; font-size: 12.5px; }
+    .counter .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .counter .dot.si { background: var(--success); }
+    .counter .dot.ep { background: var(--warning); }
+    .counter .dot.no { background: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-left">
+          <h2><i class="fa-solid fa-user-check" style="color:var(--accent);margin-right:8px"></i>Autoevaluación del alumno</h2>
+        </div>
+        <div class="topbar-actions">
+          <select id="studentSelector" class="unit-selector" style="padding:6px 10px;font-size:12.5px;max-width:240px"></select>
+        </div>
+      </div>
+      <div class="content" style="max-width:760px">
+        <div class="bc" id="breadcrumb"></div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">
+          <i class="fa-solid fa-lightbulb" style="color:var(--warning);margin-right:6px"></i>
+          Permite que el alumno reflexione sobre su propio aprendizaje. Complete 6 preguntas con respuesta <strong>Sí</strong> · <strong>En proceso</strong> · <strong>No</strong> y agregue una breve justificación.
+        </p>
+        <div class="counter">
+          <div class="seg"><span class="dot si"></span> <strong id="countSi">0</strong> Sí</div>
+          <div class="seg"><span class="dot ep"></span> <strong id="countEP">0</strong> En proceso</div>
+          <div class="seg"><span class="dot no"></span> <strong id="countNo">0</strong> No</div>
+          <div style="margin-left:auto;font-size:12px;color:var(--muted)"><span id="countTotal">0</span> / 6 respondidas</div>
+        </div>
+        <form id="selfForm">
+          <div id="questionsContainer"></div>
+          <div class="form-actions" style="margin-top:20px">
+            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Guardar autoevaluación</button>
+            <button type="button" class="btn" id="clearBtn"><i class="fa-solid fa-rotate-left"></i> Limpiar respuestas</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { escapeHtml }    from '../js/core/dom.js';
+
+    const params = new URLSearchParams(window.location.search);
+    let currentSid = params.get('alumno');
+
+    const QUESTIONS = [
+      '¿Pude resolver las actividades propuestas por el/la docente?',
+      '¿Entendí las explicaciones y ejemplos dados en clase?',
+      '¿Pude participar activamente en la clase grupal?',
+      '¿Identifiqué cuándo necesitaba ayuda y la pedí?',
+      '¿Pude relacionar lo aprendido con mi vida diaria?',
+      '¿Considero que avancé en mi autonomía personal y social?'
+    ];
+
+    let answers = {}; // { 0: 'si'|'ep'|'no', 1: ... }
+    let reflections = {}; // { 0: '...', 1: '...' }
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'self-eval');
+      const all = window.App.students.list();
+      if (!currentSid) currentSid = all[0]?.id;
+      const sel = document.getElementById('studentSelector');
+      sel.innerHTML = all.length
+        ? all.map(s => `<option value="${s.id}" ${s.id===currentSid?'selected':''}>${escapeHtml(s.name)}</option>`).join('')
+        : '<option>—</option>';
+      sel.addEventListener('change', () => { currentSid = sel.value; load(); });
+      window.App.bus.on(window.App.EVENTS.SELF_EVAL_CHANGED, load);
+      document.getElementById('selfForm').addEventListener('submit', submit);
+      document.getElementById('clearBtn').addEventListener('click', () => {
+        answers = {}; reflections = {};
+        renderQuestions();
+        updateCounter();
+      });
+      load();
+    }
+
+    function load() {
+      answers = {}; reflections = {};
+      if (currentSid) {
+        const prev = window.App.selfEval.byStudent(currentSid).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        if (prev) { answers = prev.answers || {}; reflections = prev.reflections || {}; }
+      }
+      renderBreadcrumb();
+      renderQuestions();
+      updateCounter();
+    }
+
+    function renderBreadcrumb() {
+      const s = currentSid ? window.App.students.get(currentSid) : null;
+      if (!s) { document.getElementById('breadcrumb').innerHTML = ''; return; }
+      const g = window.App.groups.get(s.groupId);
+      document.getElementById('breadcrumb').innerHTML = `
+        <a class="bc-link" href="dashboard.html"><i class="fa-solid fa-house bc-icon"></i> Inicio</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="group.html?grupo=${s.groupId}">${escapeHtml(g ? g.name : 'Grupo')}</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="student.html?alumno=${s.id}">${escapeHtml(s.name)}</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <span class="bc-current">Autoevaluación</span>
+      `;
+    }
+
+    function renderQuestions() {
+      const c = document.getElementById('questionsContainer');
+      c.innerHTML = QUESTIONS.map((q, i) => `
+        <div class="q-card" data-q="${i}">
+          <div class="q-text"><span class="q-num">${i + 1}</span>${escapeHtml(q)}</div>
+          <div class="answers">
+            <button type="button" class="answer-btn si" data-ans="si">Sí</button>
+            <button type="button" class="answer-btn ep" data-ans="ep">En proceso</button>
+            <button type="button" class="answer-btn no" data-ans="no">No</button>
+          </div>
+          <textarea name="ref_${i}" placeholder="¿Por qué? (opcional)">${escapeHtml(reflections[i] || '')}</textarea>
+        </div>
+      `).join('');
+      c.querySelectorAll('.answer-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const qi = parseInt(btn.closest('.q-card').dataset.q, 10);
+          const ans = btn.dataset.ans;
+          answers[qi] = (answers[qi] === ans) ? null : ans;
+          if (!answers[qi]) delete answers[qi];
+          btn.closest('.answers').querySelectorAll('.answer-btn').forEach(b => b.classList.toggle('active', b === btn && answers[qi]));
+          updateCounter();
+        });
+      });
+      // Restaurar selección visual
+      Object.keys(answers).forEach(qi => {
+        const card = c.querySelector(`.q-card[data-q="${qi}"]`);
+        if (card) card.querySelector(`.answer-btn.${answers[qi]}`)?.classList.add('active');
+      });
+    }
+
+    function updateCounter() {
+      const counts = { si: 0, ep: 0, no: 0 };
+      Object.values(answers).forEach(a => { if (counts[a] !== undefined) counts[a]++; });
+      document.getElementById('countSi').textContent  = counts.si;
+      document.getElementById('countEP').textContent  = counts.ep;
+      document.getElementById('countNo').textContent  = counts.no;
+      document.getElementById('countTotal').textContent = counts.si + counts.ep + counts.no;
+    }
+
+    function submit(e) {
+      e.preventDefault();
+      if (!currentSid) { window.App.toast({ type: 'error', title: 'Sin alumno', message: 'Selecciona un alumno para guardar.' }); return; }
+      if (Object.keys(answers).length < 6) {
+        window.App.toast({ type: 'warning', title: 'Faltan respuestas', message: 'Por favor responde las 6 preguntas antes de guardar.' });
+        return;
+      }
+      // Recoger reflections
+      const c = document.getElementById('questionsContainer');
+      c.querySelectorAll('textarea').forEach(ta => {
+        const i = ta.name.split('_')[1];
+        reflections[i] = ta.value.trim();
+      });
+      const r = window.App.selfEval.save({ studentId: currentSid, answers, reflections });
+      if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error || 'No se pudo guardar' }); return; }
+      window.App.toast({ type: 'success', title: '¡Autoevaluación guardada!', message: 'La reflexión del alumno quedó registrada.' });
+    }
+
+    init();
+  </script>
+</body>
+</html>

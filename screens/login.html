@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Iniciar sesión — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .login-page {
+      display: flex; min-height: 100vh; align-items: center; justify-content: center;
+      background: var(--bg); padding: 24px; position: relative; overflow: hidden;
+    }
+    .login-page::before {
+      content: ''; position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse at 25% 30%, oklch(58% 0.18 255 / 0.10) 0%, transparent 50%),
+        radial-gradient(ellipse at 75% 70%, oklch(58% 0.18 255 / 0.06) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .login-card {
+      position: relative;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 40px 32px 32px;
+      width: 100%; max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.05);
+    }
+    .login-card .logo-lg {
+      width: 48px; height: 48px;
+      background: var(--accent); border-radius: 12px;
+      display: grid; place-items: center; color: #fff;
+      font-weight: 700; font-size: 20px;
+      margin: 0 auto 14px;
+      box-shadow: 0 8px 20px oklch(58% 0.18 255 / 0.3);
+    }
+    .login-card h1 { text-align: center; font: 700 22px/1.2 var(--font-display); letter-spacing: -0.025em; margin-bottom: 4px; }
+    .login-card .subtitle { text-align: center; color: var(--muted); font-size: 13px; margin-bottom: 28px; }
+    .login-card .form-group { margin-bottom: 16px; }
+    .login-card label { font-size: 12px; font-weight: 500; color: var(--muted); display: block; margin-bottom: 6px; letter-spacing: 0.01em; }
+    .input-icon { position: relative; }
+    .input-icon i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
+    .input-icon input { padding-left: 36px !important; }
+    .login-card .btn-primary { width: 100%; justify-content: center; padding: 12px; font-size: 14px; margin-top: 8px; }
+    .login-footer { text-align: center; margin-top: 20px; font-size: 11.5px; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .demo-hint {
+      margin-top: 18px; padding: 12px 14px;
+      background: oklch(58% 0.18 255 / 0.05);
+      border: 1px dashed oklch(58% 0.18 255 / 0.25);
+      border-radius: 8px; font-size: 12px; color: var(--muted); text-align: center;
+    }
+    .demo-hint strong { color: var(--fg); font-weight: 600; }
+    .demo-hint code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font: 500 11.5px var(--font-mono); color: var(--accent); }
+    .login-error {
+      display: none; padding: 10px 14px; margin-bottom: 14px;
+      background: oklch(55% 0.18 25 / 0.08);
+      border: 1px solid oklch(55% 0.18 25 / 0.2);
+      border-radius: 8px; color: var(--danger);
+      font-size: 12.5px; align-items: center; gap: 8px;
+    }
+    .login-error.visible { display: flex; }
+  </style>
+</head>
+<body>
+  <div class="login-page parallax-bg">
+    <div class="login-card hero-animate" style="animation-delay: 0.1s">
+      <a href="../index.html" class="logo-lg" title="Volver al inicio">SD</a>
+      <h1>Sistema Docente</h1>
+      <p class="subtitle">Semilleros UTN 2026 · Carrera de Software</p>
+
+      <div class="login-error" id="loginError">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <span id="loginErrorMsg"></span>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <div class="form-group">
+          <label for="email">Correo electrónico</label>
+          <div class="input-icon">
+            <i class="fa-regular fa-envelope"></i>
+            <input type="email" id="email" name="email" placeholder="docente@institucion.edu.ec" value="maria.garcia@institucion.edu.ec" autocomplete="email" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="pass">Contraseña</label>
+          <div class="input-icon">
+            <i class="fa-solid fa-lock"></i>
+            <input type="password" id="pass" name="password" placeholder="••••••••" value="password" autocomplete="current-password" required />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary" id="submitBtn">
+          <i class="fa-solid fa-right-to-bracket"></i> Iniciar sesión
+        </button>
+      </form>
+
+      <div class="demo-hint">
+        <i class="fa-solid fa-circle-info"></i> Demo:
+        <code>maria.garcia@institucion.edu.ec</code> / <code>password</code>
+      </div>
+
+      <div class="login-footer">
+        <i class="fa-solid fa-shield-halved"></i>
+        Acceso protegido — solo personal autorizado
+      </div>
+    </div>
+  </div>
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script>
+    function showError(msg) {
+      var el = document.getElementById('loginError');
+      document.getElementById('loginErrorMsg').textContent = msg;
+      el.classList.add('visible');
+    }
+    function clearError() {
+      document.getElementById('loginError').classList.remove('visible');
+    }
+    document.getElementById('loginForm').addEventListener('submit', function (e) {
+      e.preventDefault();
+      clearError();
+      var email = document.getElementById('email').value.trim();
+      var pass  = document.getElementById('pass').value;
+      var btn   = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificando…';
+      // App estará disponible tras cargar app.js como módulo
+      function tryLogin() {
+        if (!window.App) { setTimeout(tryLogin, 60); return; }
+        var r = window.App.auth.login(email, pass);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Iniciar sesión';
+        if (!r.ok) { showError(r.error); return; }
+        window.App.toast({ type: 'success', title: '¡Bienvenida!', message: 'Hola, ' + r.user.name + '. Cargando panel…' });
+        setTimeout(function () { window.location.href = 'dashboard.html'; }, 400);
+      }
+      tryLogin();
+    });
+
+    // Si ya está autenticado, redirigir al panel
+    (function () {
+      function check() {
+        if (window.App && window.App.auth.isLoggedIn()) {
+          window.location.href = 'dashboard.html';
+        }
+      }
+      check();
+      if (!window.App) setTimeout(check, 200);
+    })();
+  </script>
+</body>
+</html>

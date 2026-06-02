@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unidades didácticas — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .unit-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px 20px; margin-bottom: 12px;
+    }
+    .unit-card h3 { font: 500 15px/1.2 var(--font-display); margin-bottom: 4px; }
+    .unit-card .meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; gap: 16px; flex-wrap: wrap; }
+    .unit-card .meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .unit-card .desc { font-size: 13px; color: var(--fg); margin-bottom: 12px; line-height: 1.5; }
+    .unit-card .actions { display: flex; gap: 6px; }
+    .unit-card.is-archived { opacity: 0.65; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <h2><i class="fa-solid fa-book-open" style="color:var(--accent);margin-right:8px"></i>Unidades didácticas</h2>
+        <div class="topbar-actions">
+          <button class="btn btn-primary" id="newUnitBtn"><i class="fa-solid fa-plus"></i> Nueva unidad</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="card" style="padding:16px;margin-bottom:20px">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <button class="filter-chip active" data-filter="all">Todas</button>
+            <button class="filter-chip" data-filter="active">Activas</button>
+            <button class="filter-chip" data-filter="archived">Archivadas</button>
+            <input type="search" id="searchUnit" placeholder="Buscar unidad..." style="margin-left:auto;width:auto;max-width:240px" />
+          </div>
+        </div>
+        <div id="unitsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { Modal }         from '../js/views/modal.js';
+    import { escapeHtml, fmtDate } from '../js/core/dom.js';
+
+    let currentFilter = 'all';
+    let searchQuery   = '';
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'units');
+      render();
+      window.App.bus.on(window.App.EVENTS.UNITS_CHANGED, render);
+      document.getElementById('newUnitBtn').addEventListener('click', openUnitModal);
+      document.querySelectorAll('.filter-chip').forEach(b => {
+        b.addEventListener('click', () => {
+          currentFilter = b.dataset.filter;
+          document.querySelectorAll('.filter-chip').forEach(x => x.classList.toggle('active', x === b));
+          render();
+        });
+      });
+      document.getElementById('searchUnit').addEventListener('input', function () {
+        searchQuery = this.value.trim().toLowerCase();
+        render();
+      });
+    }
+
+    function render() {
+      const all = window.App.units.list();
+      const list = all.filter(u => {
+        const okStatus = currentFilter === 'all' || (currentFilter === 'active' ? u.status !== 'archived' : u.status === 'archived');
+        const okText   = !searchQuery || (u.name + ' ' + (u.scope||'') + ' ' + (u.objectives||'')).toLowerCase().includes(searchQuery);
+        return okStatus && okText;
+      });
+
+      const container = document.getElementById('unitsList');
+      if (!list.length) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <span class="icon"><i class="fa-regular fa-folder-open"></i></span>
+            <h3>Sin unidades</h3>
+            <p>${all.length ? 'No hay unidades que coincidan con el filtro.' : 'Crea la primera unidad didáctica para empezar.'}</p>
+            <button class="btn btn-primary" onclick="document.getElementById('newUnitBtn').click()">
+              <i class="fa-solid fa-plus"></i> Nueva unidad
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = list.map(u => {
+        const groups = (u.groupIds || []).map(gid => {
+          const g = window.App.groups.get(gid);
+          return g ? g.name : null;
+        }).filter(Boolean);
+        const evs = window.App.evaluations.byUnit(u.id).length;
+        const status = u.status === 'archived';
+        return `
+          <div class="unit-card ${status ? 'is-archived' : ''}" data-unit-id="${u.id}">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+              <div style="flex:1;min-width:240px">
+                <h3>${escapeHtml(u.name)}</h3>
+                <div class="meta">
+                  <span><i class="fa-solid fa-folder-tree"></i> ${escapeHtml(groups.join(', ') || '— sin grupos —')}</span>
+                  <span><i class="fa-regular fa-calendar"></i> ${u.weeks} semana(s)</span>
+                  <span><i class="fa-solid fa-tag"></i> ${escapeHtml(u.scope || '—')}</span>
+                  <span><span class="badge ${status ? 'badge-archived' : 'badge-active'}">${status ? 'Archivada' : 'Activa'}</span></span>
+                  <span><i class="fa-solid fa-clipboard-check"></i> ${evs} evaluación(es)</span>
+                </div>
+              </div>
+              <div class="actions" style="flex-shrink:0;display:flex;gap:6px;flex-wrap:wrap">
+                <button class="btn-action" data-action="edit" title="Editar esta unidad"><i class="fa-solid fa-pen"></i> Editar</button>
+                <button class="btn-action" data-action="clone" title="Duplicar para crear una nueva"><i class="fa-solid fa-copy"></i> Duplicar</button>
+                ${status
+                  ? `<button class="btn-action" data-action="unarchive" title="Volver a activarla"><i class="fa-solid fa-box-open"></i> Reactivar</button>`
+                  : `<button class="btn-action warning" data-action="archive" title="Archivar y ocultarla de activas"><i class="fa-solid fa-box-archive"></i> Archivar</button>`}
+                <button class="btn-action danger" data-action="delete" title="Eliminar definitivamente"><i class="fa-solid fa-trash"></i> Eliminar</button>
+              </div>
+            </div>
+            ${u.objectives ? `<div class="desc">${escapeHtml(u.objectives)}</div>` : ''}
+            <div style="font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap">
+              ${u.skills ? `<span><strong>Destrezas:</strong> ${escapeHtml(u.skills)}</span>` : ''}
+              ${u.technique ? `<span><strong>Técnica:</strong> ${escapeHtml(u.technique)}</span>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      // Resaltar una unidad recién clonada/creada
+      if (window.__highlightUnitId) {
+        const el = container.querySelector(`[data-unit-id="${window.__highlightUnitId}"]`);
+        if (el) {
+          el.classList.add('pulse-highlight');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          window.__highlightUnitId = null;
+        }
+      }
+
+      container.querySelectorAll('button[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.closest('.unit-card').getAttribute('data-unit-id');
+          const action = btn.dataset.action;
+          if (action === 'edit') openUnitModal(id);
+          if (action === 'clone') {
+            const r = window.App.units.clone(id);
+            if (r && r.ok) {
+              window.__highlightUnitId = r.id;
+              window.App.toast({
+                type: 'success',
+                title: '¡Unidad duplicada!',
+                message: `Nueva copia: "${(window.App.units.get(r.id)||{}).name||''}". Puedes editarla libremente.`
+              });
+            } else {
+              window.App.toast({ type: 'error', title: 'No se pudo duplicar', message: (r && r.error) || 'Error desconocido' });
+            }
+          }
+          if (action === 'archive') {
+            window.App.units.archive(id);
+            window.App.toast({ type: 'info', title: 'Archivada', message: 'La unidad ya no aparece como activa.' });
+          }
+          if (action === 'unarchive') {
+            window.App.units.unarchive(id);
+            window.App.toast({ type: 'success', title: 'Reactivada', message: 'La unidad vuelve a estar activa.' });
+          }
+          if (action === 'delete') {
+            const u = window.App.units.get(id);
+            Modal.confirm({
+              title: 'Eliminar unidad',
+              message: `¿Eliminar "${u.name}"? No se eliminarán las evaluaciones asociadas pero quedarán sin unidad.`,
+              confirmText: 'Eliminar', danger: true,
+              icon: '<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i>',
+              onConfirm: () => {
+                window.App.units.remove(id);
+                window.App.toast({ type: 'success', title: 'Unidad eliminada' });
+              }
+            });
+          }
+        });
+      });
+    }
+
+    function openUnitModal(id) {
+      const isEdit = !!id;
+      const u = isEdit ? window.App.units.get(id) : { name: '', scope: 'Convivencia', weeks: 4, groupIds: [], objectives: '', skills: '', activities: '', technique: 'Aprendizaje Basado en Problemas (ABP)', criteria: '' };
+      if (isEdit && !u) return;
+      const allGroups = window.App.groups.list();
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="form-group"><label>Nombre *</label><input type="text" name="name" value="${escapeHtml(u.name)}" placeholder="Ej: Unidad 5 — ..." autofocus /></div>
+        <div class="form-row">
+          <div class="form-group"><label>Ámbito</label>
+            <select name="scope">
+              ${['Convivencia','Socio-afectivo','Corporal','Autonomía','Entorno'].map(s => `<option ${u.scope===s?'selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>Semanas</label><input type="number" name="weeks" min="1" max="20" value="${u.weeks}" /></div>
+        </div>
+        <div class="form-group"><label>Grupos donde se aplica</label>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg)">
+            ${allGroups.map(g => `
+              <label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer">
+                <input type="checkbox" name="groupIds" value="${g.id}" ${u.groupIds.includes(g.id)?'checked':''}/> ${escapeHtml(g.name)}
+              </label>
+            `).join('') || '<span style="color:var(--muted);font-size:12px">No hay grupos. Crea uno primero.</span>'}
+          </div>
+        </div>
+        <div class="form-group"><label>Objetivo general</label><textarea name="objectives" rows="2" placeholder="Ej: Lograr que el alumno desarrolle estrategias de autocuidado...">${escapeHtml(u.objectives)}</textarea></div>
+        <div class="form-group"><label>Destrezas</label><textarea name="skills" rows="2" placeholder="Identificar a los miembros de su familia, practicar normas de seguridad...">${escapeHtml(u.skills)}</textarea></div>
+        <div class="form-group"><label>Descripción de actividades</label><textarea name="activities" rows="3" placeholder="Actividades con texto, imágenes y enlaces...">${escapeHtml(u.activities)}</textarea></div>
+        <div class="form-group"><label>Técnica didáctica</label>
+          <select name="technique">
+            ${['Aprendizaje Basado en Problemas (ABP)','Modelamiento','Organizadores gráficos','Mapas conceptuales','Enseñanza recíproca'].map(t => `<option ${u.technique===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Criterios de evaluación</label><textarea name="criteria" rows="2" placeholder="Clasificación, seriación, construcción de conocimiento...">${escapeHtml(u.criteria)}</textarea></div>
+      `;
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'btn';
+      cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancelar';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button'; saveBtn.className = 'btn btn-primary';
+      saveBtn.innerHTML = isEdit
+        ? '<i class="fa-solid fa-check"></i> Guardar cambios'
+        : '<i class="fa-solid fa-plus"></i> Crear unidad';
+      footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+      cancelBtn.addEventListener('click', () => Modal.close());
+      saveBtn.addEventListener('click', () => {
+        const groupIds = Array.from(body.querySelectorAll('input[name=groupIds]:checked')).map(c => c.value);
+        const data = {
+          name: body.querySelector('[name=name]').value.trim(),
+          scope: body.querySelector('[name=scope]').value,
+          weeks: body.querySelector('[name=weeks]').value,
+          groupIds,
+          objectives: body.querySelector('[name=objectives]').value.trim(),
+          skills: body.querySelector('[name=skills]').value.trim(),
+          activities: body.querySelector('[name=activities]').value.trim(),
+          technique: body.querySelector('[name=technique]').value,
+          criteria: body.querySelector('[name=criteria]').value.trim()
+        };
+        const r = isEdit ? window.App.units.update(id, data) : window.App.units.create(data);
+        if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error || Object.values(r.errors||{})[0] || 'Verifica los datos' }); return; }
+        Modal.close();
+        if (!isEdit) {
+          // Limpiar filtro y búsqueda para que la nueva unidad sea visible
+          currentFilter = 'all';
+          searchQuery = '';
+          document.querySelectorAll('.filter-chip').forEach(x => x.classList.toggle('active', x.dataset.filter === 'all'));
+          const searchInput = document.getElementById('searchUnit');
+          if (searchInput) searchInput.value = '';
+          window.__highlightUnitId = r.id;
+        }
+        window.App.toast({ type: 'success', title: isEdit ? '¡Unidad actualizada!' : '¡Unidad creada!', message: isEdit ? 'Los cambios se guardaron correctamente.' : `Nueva unidad "${data.name}" agregada al inicio.` });
+      });
+      Modal.open({
+        title: isEdit ? 'Editar unidad didáctica' : 'Nueva unidad didáctica',
+        icon: isEdit ? '<i class="fa-solid fa-pen-to-square"></i>' : '<i class="fa-solid fa-folder-plus"></i>',
+        body, footer, size: 'lg'
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

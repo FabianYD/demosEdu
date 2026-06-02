@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Perfil del alumno — Sistema Docente</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="../app.css" />
+  <style>
+    .profile-header {
+      display: flex; align-items: center; gap: 16px;
+      padding-bottom: 20px; border-bottom: 1px solid var(--border); margin-bottom: 24px;
+    }
+    .profile-avatar {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: var(--accent-muted); color: var(--accent);
+      display: grid; place-items: center;
+      font: 600 20px var(--font-display); flex-shrink: 0;
+    }
+    .profile-info h2 { font: 600 18px/1.2 var(--font-display); letter-spacing: -0.015em; }
+    .profile-info .detail { color: var(--muted); font-size: 13px; margin-top: 4px; display: flex; gap: 14px; flex-wrap: wrap; }
+    .profile-info .detail span { display: inline-flex; align-items: center; gap: 4px; }
+    .rubric-grid { display: grid; gap: 8px; margin-top: 12px; }
+    .rubric-row {
+      display: grid; grid-template-columns: 1fr 110px 40px;
+      align-items: center; padding: 10px 0;
+      border-bottom: 1px solid var(--border); font-size: 13px;
+    }
+    .rubric-row:last-child { border-bottom: none; }
+    .rubric-row .criterion { font-weight: 450; }
+    .timeline { margin-top: 16px; }
+    .timeline-item {
+      display: flex; gap: 12px; padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .timeline-item:last-child { border-bottom: none; }
+    .timeline-date {
+      min-width: 78px; font-size: 12px; color: var(--muted);
+      font-family: var(--font-mono);
+    }
+    .timeline-body { flex: 1; }
+    .timeline-body .activity { font-weight: 500; font-size: 13px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .timeline-body .note { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+    .timeline .badge { margin-right: 4px; }
+    .timeline-actions { display: flex; gap: 4px; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="sidebar-backdrop" id="backdrop" onclick="toggleSidebar()"></div>
+    <div class="main-area">
+      <div class="topbar">
+        <button class="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        <div class="topbar-left">
+          <a href="dashboard.html" id="backToGroup" class="btn btn-ghost btn-sm"><i class="fa-solid fa-arrow-left"></i> <span id="backLabel">Grupo</span></a>
+          <h2><i class="fa-solid fa-user" style="color:var(--accent);margin-right:8px"></i>Perfil del alumno</h2>
+        </div>
+        <div class="topbar-actions">
+          <a id="evalLink" class="btn btn-primary"><i class="fa-solid fa-clipboard-check"></i> Evaluar</a>
+          <a id="monLink" class="btn"><i class="fa-solid fa-file-lines"></i> Ficha de monitoreo</a>
+        </div>
+      </div>
+      <div class="content">
+        <div class="bc" id="breadcrumb"></div>
+        <div class="profile-header" id="profileHeader"></div>
+
+        <div class="tabs">
+          <button class="tab active" data-tab="progress"><i class="fa-solid fa-chart-line"></i> Progreso</button>
+          <button class="tab" data-tab="history"><i class="fa-solid fa-clock-rotate-left"></i> Historial</button>
+          <button class="tab" data-tab="monitoring"><i class="fa-solid fa-file-lines"></i> Monitoreo</button>
+          <button class="tab" data-tab="notes"><i class="fa-solid fa-note-sticky"></i> Notas</button>
+        </div>
+
+        <div id="tab-progress"></div>
+        <div id="tab-history" hidden></div>
+        <div id="tab-monitoring" hidden></div>
+        <div id="tab-notes" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../help.js"></script>
+  <script type="module" src="../js/app.js"></script>
+  <script type="module">
+    import { renderSidebar } from '../js/views/sidebar.js';
+    import { Modal }         from '../js/views/modal.js';
+    import { escapeHtml, fmtDate, fmtDateTime } from '../js/core/dom.js';
+
+    const params = new URLSearchParams(window.location.search);
+    const studentId = params.get('alumno');
+    if (!studentId) window.location.href = 'dashboard.html';
+
+    const CRITERIA = [
+      { key: 'clasificacion', label: 'Clasificación de información' },
+      { key: 'seriacion',     label: 'Seriación y ordenamiento' },
+      { key: 'construccion',  label: 'Construcción de conocimiento' },
+      { key: 'pensamiento',   label: 'Pensamiento lógico' },
+      { key: 'metacognicion', label: 'Metacognición' }
+    ];
+    const MON_FIELDS = [
+      { key: 'clasificacion',   label: 'Clasificación' },
+      { key: 'seriacion',       label: 'Seriación' },
+      { key: 'asimilacion',     label: 'Asimilación / Acomodación' },
+      { key: 'justificacion',   label: 'Justificación lógica' },
+      { key: 'autorregulacion', label: 'Autorregulación' }
+    ];
+
+    function init() {
+      if (!window.App) { setTimeout(init, 50); return; }
+      if (!window.App.auth.isLoggedIn()) { window.location.href = 'login.html'; return; }
+      renderSidebar(document.getElementById('sidebar'), 'dashboard');
+      render();
+      window.App.bus.on(window.App.EVENTS.EVALS_CHANGED, render);
+      window.App.bus.on(window.App.EVENTS.MONITORING_CHANGED, render);
+      window.App.bus.on(window.App.EVENTS.NOTES_CHANGED, render);
+
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+      });
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+      ['progress','history','monitoring','notes'].forEach(id => {
+        document.getElementById('tab-' + id).hidden = id !== tab;
+      });
+    }
+
+    function badgeClass(level) {
+      return level === 'L' ? 'badge-achieved' : level === 'EP' ? 'badge-progress' : 'badge-initiated';
+    }
+    function badgeLabel(level) {
+      return level === 'L' ? 'Logrado' : level === 'EP' ? 'En Proceso' : 'Iniciado';
+    }
+
+    function render() {
+      const s = window.App.students.get(studentId);
+      if (!s) {
+        document.getElementById('profileHeader').innerHTML = `
+          <div class="empty-state" style="margin:0">
+            <span class="icon"><i class="fa-solid fa-user-slash"></i></span>
+            <h3>Alumno no encontrado</h3>
+            <p>El alumno fue eliminado o no existe.</p>
+            <a class="btn btn-primary" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Volver a grupos</a>
+          </div>`;
+        return;
+      }
+      const g = window.App.groups.get(s.groupId);
+      document.title = `${s.name} — Sistema Docente`;
+      const initials = s.name.split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+      document.getElementById('profileHeader').innerHTML = `
+        <div class="profile-avatar">${escapeHtml(initials)}</div>
+        <div class="profile-info">
+          <h2>${escapeHtml(s.name)}</h2>
+          <div class="detail">
+            <span><i class="fa-solid fa-folder-tree"></i> ${escapeHtml(g ? g.name : '—')}</span>
+            <span><i class="fa-solid fa-user-shield"></i> ${escapeHtml(s.representative || 'Sin representante')}</span>
+            <span><i class="fa-solid fa-phone"></i> ${escapeHtml(s.phone || '—')}</span>
+          </div>
+        </div>
+      `;
+      document.getElementById('breadcrumb').innerHTML = `
+        <a class="bc-link" href="dashboard.html"><i class="fa-solid fa-house bc-icon"></i> Inicio</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <a class="bc-link" href="group.html?grupo=${s.groupId}">${escapeHtml(g ? g.name : 'Grupo')}</a>
+        <span class="bc-sep"><i class="fa-solid fa-chevron-right bc-icon"></i></span>
+        <span class="bc-current">${escapeHtml(s.name)}</span>
+      `;
+      document.getElementById('backToGroup').href = 'group.html?grupo=' + s.groupId;
+      document.getElementById('backLabel').textContent = g ? g.name : 'Grupo';
+      document.getElementById('evalLink').href = 'evaluate.html?alumno=' + s.id;
+      document.getElementById('monLink').href  = 'monitoring.html?alumno=' + s.id;
+
+      // Última evaluación
+      const latest = window.App.evaluations.latest(s.id);
+      const unit   = latest ? window.App.units.get(latest.unitId) : null;
+      const tabProgress = document.getElementById('tab-progress');
+      if (latest) {
+        tabProgress.innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fa-solid fa-clipboard-check" style="color:var(--accent);margin-right:6px"></i>Rúbrica cognitiva — ${escapeHtml(unit ? unit.name : '—')}</h3>
+              <span class="badge ${latest.criteria && Object.values(latest.criteria).filter(v => v==='L').length >= 3 ? 'badge-achieved' : 'badge-progress'}">
+                ${latest.criteria ? Object.values(latest.criteria).filter(v => v==='L').length : 0}/${CRITERIA.length} Logrados
+              </span>
+            </div>
+            <div class="rubric-grid">
+              ${CRITERIA.map(c => {
+                const v = latest.criteria ? latest.criteria[c.key] : null;
+                return `
+                  <div class="rubric-row">
+                    <span class="criterion">${escapeHtml(c.label)}</span>
+                    <span class="level">${v ? `<span class="badge ${badgeClass(v)}">${badgeLabel(v)}</span>` : '—'}</span>
+                    <span class="timeline-actions">
+                      <a class="btn-action primary" href="evaluate.html?alumno=${s.id}" title="Reevaluar a este alumno">
+                        <i class="fa-solid fa-pen"></i> Evaluar
+                      </a>
+                    </span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+            ${latest.observations ? `<div style="margin-top:12px;padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:12.5px;color:var(--muted)"><i class="fa-solid fa-comment" style="color:var(--accent);margin-right:6px"></i>${escapeHtml(latest.observations)}</div>` : ''}
+          </div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-header">
+              <h3><i class="fa-solid fa-chart-line" style="color:var(--accent);margin-right:6px"></i>Progreso por unidad</h3>
+            </div>
+            <div style="display:grid;gap:12px">
+              ${window.App.units.list().filter(u => (u.groupIds||[]).includes(s.groupId)).map(u => {
+                const evs = window.App.evaluations.byStudent(s.id).filter(e => e.unitId === u.id);
+                const totalL = evs.reduce((acc, e) => acc + Object.values(e.criteria||{}).filter(v => v==='L').length, 0);
+                const totalAll = evs.length * CRITERIA.length;
+                const pct = totalAll ? Math.round((totalL / totalAll) * 100) : 0;
+                return `
+                  <div>
+                    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                      <span><strong>${escapeHtml(u.name)}</strong></span>
+                      <span style="color:var(--muted)">${evs.length} evaluación(es) · ${pct}% L</span>
+                    </div>
+                    <div class="progress-bar"><div class="fill" style="width:${pct}%"></div></div>
+                  </div>
+                `;
+              }).join('') || '<p style="color:var(--muted);font-size:13px">Aún no hay unidades asignadas al grupo.</p>'}
+            </div>
+          </div>
+        `;
+      } else {
+        tabProgress.innerHTML = `
+          <div class="empty-state">
+            <span class="icon"><i class="fa-regular fa-clipboard"></i></span>
+            <h3>Sin evaluaciones</h3>
+            <p>Aún no se ha registrado una evaluación con rúbrica para este alumno.</p>
+            <a class="btn btn-primary" href="evaluate.html?alumno=${s.id}"><i class="fa-solid fa-clipboard-check"></i> Crear primera evaluación</a>
+          </div>
+        `;
+      }
+
+      // Historial
+      const history = window.App.evaluations.byStudent(s.id).sort((a, b) => b.date - a.date);
+      const tabHistory = document.getElementById('tab-history');
+      if (history.length) {
+        tabHistory.innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--accent);margin-right:6px"></i>Historial de evaluaciones</h3>
+            </div>
+            <div class="timeline">
+              ${history.map(e => {
+                const u = window.App.units.get(e.unitId);
+                return `
+                  <div class="timeline-item">
+                    <div class="timeline-date">${fmtDate(e.date)}</div>
+                    <div class="timeline-body">
+                      <div class="activity">
+                        <i class="fa-solid fa-clipboard-check" style="color:var(--accent)"></i>
+                        ${escapeHtml(u ? u.name : 'Unidad')}
+                        <span class="timeline-actions">
+                          <button class="btn-action danger" data-del-eval="${e.id}" title="Eliminar esta evaluación">
+                            <i class="fa-solid fa-trash"></i> Eliminar
+                          </button>
+                        </span>
+                      </div>
+                      <div>${CRITERIA.map(c => {
+                        const v = e.criteria ? e.criteria[c.key] : null;
+                        return v ? `<span class="badge ${badgeClass(v)}" title="${escapeHtml(c.label)}">${v}</span>` : '';
+                      }).join('')}</div>
+                      ${e.observations ? `<div class="note" style="margin-top:6px">${escapeHtml(e.observations)}</div>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        tabHistory.querySelectorAll('[data-del-eval]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-del-eval');
+            Modal.confirm({
+              title: 'Eliminar evaluación',
+              message: '¿Eliminar este registro de evaluación?',
+              danger: true, confirmText: 'Eliminar',
+              onConfirm: () => {
+                window.App.evaluations.remove(id);
+                window.App.toast({ type: 'success', title: 'Eliminado', message: 'La evaluación fue removida.' });
+              }
+            });
+          });
+        });
+      } else {
+        tabHistory.innerHTML = `<div class="empty-state"><span class="icon"><i class="fa-regular fa-clock"></i></span><h3>Sin historial</h3><p>Las evaluaciones que se registren aparecerán aquí.</p></div>`;
+      }
+
+      // Monitoreo
+      const mons = window.App.monitoring.byStudent(s.id).sort((a, b) => b.date - a.date);
+      const tabMon = document.getElementById('tab-monitoring');
+      if (mons.length) {
+        const last = mons[0];
+        const u = window.App.units.get(last.unitId);
+        tabMon.innerHTML = `
+          <div class="card">
+            <div class="card-header">
+              <h3><i class="fa-solid fa-file-lines" style="color:var(--accent);margin-right:6px"></i>Última ficha — ${escapeHtml(u ? u.name : '—')}</h3>
+              <span class="badge badge-progress">${fmtDate(last.date)}</span>
+            </div>
+            <div style="display:grid;gap:12px">
+              ${MON_FIELDS.map(f => {
+                const fd = last.fields && last.fields[f.key];
+                if (!fd) return '';
+                return `
+                  <div style="padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                      <strong style="font-size:13px">${escapeHtml(f.label)}</strong>
+                      <span class="badge ${badgeClass(fd.level)}">${badgeLabel(fd.level)}</span>
+                    </div>
+                    ${fd.observations ? `<div style="font-size:12px;color:var(--muted);margin-bottom:4px"><strong style="color:var(--fg)">Obs:</strong> ${escapeHtml(fd.observations)}</div>` : ''}
+                    ${fd.support ? `<div style="font-size:12px;color:var(--muted)"><strong style="color:var(--fg)">Apoyo:</strong> ${escapeHtml(fd.support)}</div>` : ''}
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-header"><h3><i class="fa-solid fa-clock-rotate-left" style="color:var(--accent);margin-right:6px"></i>Historial de fichas</h3></div>
+            <div class="timeline">
+              ${mons.map(m => {
+                const u = window.App.units.get(m.unitId);
+                return `<div class="timeline-item"><div class="timeline-date">${fmtDate(m.date)}</div><div class="timeline-body"><div class="activity"><i class="fa-solid fa-file-lines" style="color:var(--accent)"></i>${escapeHtml(u ? u.name : 'Unidad')}</div></div></div>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        tabMon.innerHTML = `<div class="empty-state"><span class="icon"><i class="fa-regular fa-file-lines"></i></span><h3>Sin fichas de monitoreo</h3><p>Crea la primera ficha para registrar observaciones y acciones de apoyo.</p><a class="btn btn-primary" href="monitoring.html?alumno=${s.id}"><i class="fa-solid fa-file-lines"></i> Crear ficha</a></div>`;
+      }
+
+      // Notas
+      const notes = window.App.notes.byStudent(s.id);
+      const tabNotes = document.getElementById('tab-notes');
+      tabNotes.innerHTML = `
+        <div class="card">
+          <div class="card-header">
+            <h3><i class="fa-solid fa-note-sticky" style="color:var(--accent);margin-right:6px"></i>Notas y acciones de apoyo</h3>
+            <button class="btn btn-sm btn-primary" id="addNoteBtn"><i class="fa-solid fa-plus"></i> Añadir nota</button>
+          </div>
+          ${notes.length ? `<div class="timeline">${notes.map(n => `
+            <div class="timeline-item">
+              <div class="timeline-date">${fmtDate(n.date)}</div>
+              <div class="timeline-body">
+                <div class="activity">
+                  <i class="fa-solid fa-circle" style="color:${n.type === 'support' ? 'var(--warning)' : 'var(--accent)'};font-size:6px"></i>
+                  <span>${n.type === 'support' ? 'Acción de apoyo' : 'Observación'}</span>
+                  <span class="timeline-actions">
+                    <button class="btn-action danger" data-del-note="${n.id}" title="Eliminar esta nota"><i class="fa-solid fa-trash"></i> Eliminar</button>
+                  </span>
+                </div>
+                <div class="note">${escapeHtml(n.text)}</div>
+              </div>
+            </div>
+          `).join('')}</div>` : `<div class="empty-state"><span class="icon"><i class="fa-regular fa-note-sticky"></i></span><h3>Sin notas</h3><p>Registra aquí observaciones o acciones de apoyo.</p></div>`}
+        </div>
+      `;
+      const addBtn = document.getElementById('addNoteBtn');
+      if (addBtn) addBtn.addEventListener('click', openAddNoteModal);
+      tabNotes.querySelectorAll('[data-del-note]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-del-note');
+          Modal.confirm({
+            title: 'Eliminar nota',
+            message: '¿Eliminar esta nota?',
+            danger: true, confirmText: 'Eliminar',
+            onConfirm: () => {
+              window.App.notes.remove(id);
+              window.App.toast({ type: 'success', title: 'Nota eliminada' });
+            }
+          });
+        });
+      });
+    }
+
+    function openAddNoteModal() {
+      const body = document.createElement('div');
+      body.innerHTML = `
+        <div class="form-group">
+          <label>Tipo de nota</label>
+          <select name="type">
+            <option value="observation">Observación general</option>
+            <option value="support">Acción de apoyo / mediación</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Texto *</label>
+          <textarea name="text" rows="4" placeholder="Describe la observación o estrategia de apoyo..."></textarea>
+        </div>
+      `;
+      const footer = document.createElement('div');
+      footer.style.cssText = 'display:flex;gap:8px;justify-content:flex-end';
+      const cancelBtn = document.createElement('button');
+      cancelBtn.type = 'button'; cancelBtn.className = 'btn';
+      cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> Cancelar';
+      const saveBtn = document.createElement('button');
+      saveBtn.type = 'button'; saveBtn.className = 'btn btn-primary';
+      saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Guardar nota';
+      footer.appendChild(cancelBtn); footer.appendChild(saveBtn);
+      cancelBtn.addEventListener('click', () => Modal.close());
+      saveBtn.addEventListener('click', () => {
+        const r = window.App.notes.add({
+          studentId,
+          type: body.querySelector('[name=type]').value,
+          text: body.querySelector('[name=text]').value.trim()
+        });
+        if (!r.ok) { window.App.toast({ type: 'error', title: 'Error', message: r.error }); return; }
+        Modal.close();
+        window.App.toast({ type: 'success', title: '¡Nota guardada!', message: 'Aparece en la pestaña Notas.' });
+      });
+      Modal.open({ title: 'Añadir nota', icon: '<i class="fa-solid fa-note-sticky"></i>', body, footer });
+    }
+
+    init();
+  </script>
+</body>
+</html>
