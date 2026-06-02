@@ -307,10 +307,19 @@
         body.innerHTML = `
           <div style="margin-bottom: 20px;">
             <h4>Añadir nueva tarea</h4>
-            <div style="display:flex; gap:8px; margin-top:8px;">
-              <input type="text" id="newTaskTitle" placeholder="Título de la tarea..." style="flex:1" />
-              <input type="text" id="newTaskImageUrl" placeholder="URL de la imagen (opcional)..." style="flex:1" />
-              <button class="btn btn-primary" id="btnAddTask"><i class="fa-solid fa-plus"></i></button>
+            <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+              <input type="text" id="newTaskTitle" placeholder="Título de la tarea..." style="width:100%;" />
+              <div style="display:flex; align-items:center; gap:8px;">
+                <button type="button" class="btn" id="btnUploadImage" style="padding:6px 12px; font-size:12.5px; white-space:nowrap;"><i class="fa-solid fa-upload"></i> Subir imagen</button>
+                <input type="file" id="newTaskFile" accept="image/*" style="display:none;" />
+                <input type="text" id="newTaskImageUrl" placeholder="O pega la URL de una imagen..." style="flex:1; font-size:12.5px;" />
+              </div>
+              <div id="imagePreviewContainer" style="display:none; align-items:center; gap:10px; padding:6px; border:1px dashed var(--border); border-radius:6px; background:var(--bg);">
+                <img id="imagePreview" src="" style="width:40px; height:40px; object-fit:cover; border-radius:4px;" />
+                <span id="imagePreviewName" style="font-size:12px; color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:240px;"></span>
+                <button type="button" class="btn-action danger" id="btnClearImage" style="margin-left:auto;"><i class="fa-solid fa-xmark"></i></button>
+              </div>
+              <button class="btn btn-primary" id="btnAddTask" style="width:100%;"><i class="fa-solid fa-plus"></i> Añadir tarea</button>
             </div>
           </div>
           <div style="border-top: 1px solid var(--border); padding-top: 16px;">
@@ -331,9 +340,55 @@
           </div>
         `;
 
+        const fileInput = body.querySelector('#newTaskFile');
+        const uploadBtn = body.querySelector('#btnUploadImage');
+        const urlInput = body.querySelector('#newTaskImageUrl');
+        const previewContainer = body.querySelector('#imagePreviewContainer');
+        const previewImg = body.querySelector('#imagePreview');
+        const previewName = body.querySelector('#imagePreviewName');
+        const clearBtn = body.querySelector('#btnClearImage');
+        
+        let selectedImageBase64 = '';
+        
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            selectedImageBase64 = event.target.result;
+            previewImg.src = selectedImageBase64;
+            previewName.textContent = file.name;
+            previewContainer.style.display = 'flex';
+            urlInput.value = ''; // Clear URL input
+          };
+          reader.readAsDataURL(file);
+        });
+        
+        urlInput.addEventListener('input', () => {
+          const url = urlInput.value.trim();
+          if (url) {
+            selectedImageBase64 = '';
+            previewImg.src = url;
+            previewName.textContent = 'URL de imagen';
+            previewContainer.style.display = 'flex';
+          } else {
+            previewContainer.style.display = 'none';
+          }
+        });
+        
+        clearBtn.addEventListener('click', () => {
+          selectedImageBase64 = '';
+          fileInput.value = '';
+          urlInput.value = '';
+          previewContainer.style.display = 'none';
+        });
+
         body.querySelector('#btnAddTask').addEventListener('click', () => {
-          const title = body.querySelector('#newTaskTitle').value;
-          const imageUrl = body.querySelector('#newTaskImageUrl').value;
+          const title = body.querySelector('#newTaskTitle').value.trim();
+          const imageUrl = selectedImageBase64 || urlInput.value.trim();
           if (!title) return window.App.toast({ type: 'error', title: 'Error', message: 'El título es requerido' });
           const res = window.App.tasks.create({ title, imageUrl, unitId });
           if (res.ok) {

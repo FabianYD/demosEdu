@@ -28,7 +28,7 @@
             <button data-tab="unit"><i class="fa-solid fa-book-open"></i> Por unidad</button>
             <button data-tab="criterion"><i class="fa-solid fa-chart-column"></i> Criterios cognitivos</button>
           </div>
-          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap" id="selectorArea">
             <label for="entitySel" id="entityLabel">Estudiante</label>
             <select id="entitySel"></select>
           </div>
@@ -83,32 +83,86 @@
       renderReport();
     }
 
+    let currentGroupId = null;
+
     function refreshEntitySelector() {
-      const sel  = document.getElementById('entitySel');
-      const lbl  = document.getElementById('entityLabel');
-      const data = getEntityList();
-      lbl.textContent = data.label;
-      if (!data.items.length) {
-        sel.innerHTML = '<option>— sin datos —</option>';
-        sel.disabled = true;
+      const area = document.getElementById('selectorArea');
+      
+      if (activeTab === 'student') {
+        const groups = window.App.groups.list();
+        if (!groups.length) {
+          area.innerHTML = '<label>Estudiante</label><select id="entitySel" disabled><option>— sin grupos —</option></select>';
+          currentEntityId = null;
+          return;
+        }
+        
+        if (!currentGroupId || !groups.find(g => g.id === currentGroupId)) {
+          currentGroupId = groups[0].id;
+        }
+        
+        const students = window.App.students.byGroup(currentGroupId);
+        if (!currentEntityId || !students.find(s => s.id === currentEntityId)) {
+          currentEntityId = students[0]?.id || null;
+        }
+        
+        area.innerHTML = `
+          <label for="groupSel" style="font-size:12.5px;">Grupo</label>
+          <select id="groupSel" style="padding:6px 10px; font-size:12.5px; max-width:200px; margin-right:12px;">
+            ${groups.map(g => `<option value="${escapeHtml(g.id)}" ${g.id===currentGroupId?'selected':''}>${escapeHtml(g.name)}</option>`).join('')}
+          </select>
+          <label for="entitySel" style="font-size:12.5px;">Estudiante</label>
+          <select id="entitySel" style="padding:6px 10px; font-size:12.5px; max-width:240px;" ${!students.length ? 'disabled' : ''}>
+            ${students.length 
+              ? students.map(s => `<option value="${escapeHtml(s.id)}" ${s.id===currentEntityId?'selected':''}>${escapeHtml(s.name)}</option>`).join('')
+              : '<option>— sin alumnos —</option>'}
+          </select>
+        `;
+        
+        const groupSel = document.getElementById('groupSel');
+        const entitySel = document.getElementById('entitySel');
+        
+        groupSel.onchange = () => {
+          currentGroupId = groupSel.value;
+          currentEntityId = null; // reset student
+          refreshEntitySelector();
+          renderReport();
+        };
+        
+        if (entitySel) {
+          entitySel.onchange = () => {
+            currentEntityId = entitySel.value;
+            renderReport();
+          };
+        }
         return;
       }
-      sel.disabled = false;
-      if (!currentEntityId || !data.items.find(i => i.id === currentEntityId)) {
-        currentEntityId = data.items[0].id;
+      
+      const data = getEntityList();
+      area.innerHTML = `
+        <label for="entitySel" id="entityLabel" style="font-size:12.5px;">${escapeHtml(data.label)}</label>
+        <select id="entitySel" style="padding:6px 10px; font-size:12.5px; max-width:240px;" ${!data.items.length ? 'disabled' : ''}>
+          ${data.items.length
+            ? data.items.map(i => `<option value="${escapeHtml(i.id)}" ${i.id===currentEntityId?'selected':''}>${escapeHtml(i.name)}</option>`).join('')
+            : '<option>— sin datos —</option>'}
+        </select>
+      `;
+      
+      const sel = document.getElementById('entitySel');
+      if (data.items.length) {
+        if (!currentEntityId || !data.items.find(i => i.id === currentEntityId)) {
+          currentEntityId = data.items[0].id;
+        }
+        sel.value = currentEntityId;
+        sel.onchange = () => {
+          currentEntityId = sel.value;
+          renderReport();
+        };
+      } else {
+        currentEntityId = null;
       }
-      sel.innerHTML = data.items.map(i => `<option value="${escapeHtml(i.id)}" ${i.id===currentEntityId?'selected':''}>${escapeHtml(i.name)}</option>`).join('');
-      sel.onchange = () => { currentEntityId = sel.value; renderReport(); };
     }
 
     function getEntityList() {
-      if (activeTab === 'student') {
-        const items = window.App.students.list().map(s => {
-          const g = window.App.groups.get(s.groupId);
-          return { id: s.id, name: s.name + (g ? ' — ' + g.name : '') };
-        });
-        return { label: 'Estudiante', items };
-      }
       if (activeTab === 'group') {
         const items = window.App.groups.list().map(g => ({ id: g.id, name: g.name + ' (' + g.level + ')' }));
         return { label: 'Grupo', items };

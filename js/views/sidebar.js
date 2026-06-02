@@ -9,7 +9,6 @@ import { authService } from '../services/auth.service.js';
 const NAV_ITEMS = [
   { key: 'dashboard',       href: 'dashboard.html',       icon: 'table-list',     label: 'Grupos' },
   { key: 'units',           href: 'units.html',           icon: 'book-open',      label: 'Unidades didácticas' },
-  { key: 'group-tracking',  href: 'group-tracking.html',  icon: 'chart-column',   label: 'Seguimiento grupal' },
   { key: 'self-eval',       href: 'self-eval.html',       icon: 'user-pen',       label: 'Autoevaluación' },
   { key: 'reports',         href: 'reports.html',         icon: 'file-lines',     label: 'Informes' }
 ];
